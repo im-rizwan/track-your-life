@@ -1,11 +1,7 @@
 import { z } from 'zod';
 
 // Common reusable schemas
-export const emailSchema = z
-  .string()
-  .email('Invalid email address')
-  .trim()
-  .toLowerCase();
+export const emailSchema = z.string().email('Invalid email address').trim().toLowerCase();
 
 export const passwordSchema = z
   .string()

@@ -14,7 +14,7 @@ const startServer = async (): Promise<void> => {
   try {
     // Connect to database first
     await connectDatabase();
-    
+
     // Start HTTP server
     server.listen(config.port, () => {
       logger.info(`🚀 Server running in ${config.env} mode on port ${config.port}`);
@@ -31,14 +31,14 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   if (isShuttingDown) {
     return;
   }
-  
+
   isShuttingDown = true;
   logger.info(`${signal} received, starting graceful shutdown`);
 
   // Stop accepting new connections
   server.close(async () => {
     logger.info('HTTP server closed');
-    
+
     try {
       // Disconnect database
       await disconnectDatabase();

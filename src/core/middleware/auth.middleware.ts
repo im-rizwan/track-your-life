@@ -39,26 +39,26 @@ export const authenticate = async (
 };
 
 // Optional: Middleware for optional authentication (doesn't fail if no token)
-export const optionalAuthenticate = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const authHeader = req.headers.authorization;
+// export const optionalAuthenticate = async (
+//   req: Request,
+//   _res: Response,
+//   next: NextFunction
+// ): Promise<void> => {
+//   try {
+//     const authHeader = req.headers.authorization;
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const decoded = authService.verifyAccessToken(token);
-      const user = await authService.getUserById(decoded.userId);
-      if (user) {
-        req.user = user;
-      }
-    }
+//     if (authHeader && authHeader.startsWith('Bearer ')) {
+//       const token = authHeader.substring(7);
+//       const decoded = authService.verifyAccessToken(token);
+//       const user = await authService.getUserById(decoded.userId);
+//       if (user) {
+//         req.user = user;
+//       }
+//     }
 
-    next();
-  } catch (error) {
-    // Ignore authentication errors for optional auth
-    next();
-  }
-};
+//     next();
+//   } catch (error) {
+//     // Ignore authentication errors for optional auth
+//     next();
+//   }
+// };

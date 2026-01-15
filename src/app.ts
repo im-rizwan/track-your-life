@@ -16,14 +16,16 @@ export const createApp = (): Application => {
   // Enhanced security headers
   app.use(
     helmet({
-      contentSecurityPolicy: config.isProduction ? {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-        },
-      } : false, // Disable CSP in dev for Swagger UI
+      contentSecurityPolicy: config.isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+            },
+          }
+        : false, // Disable CSP in dev for Swagger UI
       hsts: {
         maxAge: 31536000, // 1 year
         includeSubDomains: true,
@@ -36,7 +38,7 @@ export const createApp = (): Application => {
       xssFilter: true, // Enable XSS filter
     })
   );
-  
+
   // CORS configuration
   app.use(
     cors({
@@ -80,7 +82,7 @@ export const createApp = (): Application => {
     if (req.path === '/health' || req.path === '/api/v1/health') {
       return next();
     }
-    
+
     logger.info('Incoming request', {
       method: req.method,
       path: req.path,
@@ -89,7 +91,7 @@ export const createApp = (): Application => {
     });
     next();
   });
-  app.use(requestDuration); 
+  app.use(requestDuration);
   // Health check (root level, no rate limiting)
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -97,10 +99,14 @@ export const createApp = (): Application => {
 
   // Swagger documentation (disable in production if needed)
   if (config.isDevelopment || process.env.ENABLE_SWAGGER === 'true') {
-    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'Track-Yr-Life API Docs',
-    }));
+    app.use(
+      '/api-docs',
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Track-Yr-Life API Docs',
+      })
+    );
 
     app.get('/api-docs.json', (_req, res) => {
       res.setHeader('Content-Type', 'application/json');

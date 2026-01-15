@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { emailSchema, passwordSchema, createSanitizedString } from '../../../core/utils/common-schemas';
+import {
+  emailSchema,
+  passwordSchema,
+  createSanitizedString,
+} from '../../../core/utils/common-schemas';
 
 export const registerSchema = z.object({
   body: z.object({

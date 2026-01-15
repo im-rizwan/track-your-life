@@ -1,35 +1,45 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../../core/config/env.config';
-import { prisma } from '../../core/database/prisma.client';
 import { UnauthorizedError, ConflictError } from '../../core/errors/app-error';
-import { TokenPayload, AuthTokens, AuthResponse, DecodedToken, JwtSignOptions } from './types/auth.types';
+import {
+  TokenPayload,
+  AuthTokens,
+  AuthResponse,
+  DecodedToken,
+  JwtSignOptions,
+} from './types/auth.types';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { User } from '@prisma/client';
+import { AuthRepository } from './auth.repository';
 
 export class AuthService {
- // Generate JWT access token
-private generateAccessToken(payload: TokenPayload): string {
-  const options: JwtSignOptions = {
-    expiresIn: config.jwt.expiresIn,
-    algorithm: 'HS256',
-  };
+  private repository: AuthRepository;
 
-  return jwt.sign(payload, config.jwt.secret, options);
-} 
+  constructor() {
+    this.repository = new AuthRepository();
+  }
 
+  // Generate JWT access token
+  private generateAccessToken(payload: TokenPayload): string {
+    const options: JwtSignOptions = {
+      expiresIn: config.jwt.expiresIn,
+      algorithm: 'HS256',
+    };
+
+    return jwt.sign(payload, config.jwt.secret, options);
+  }
 
   // Generate JWT refresh token
   private generateRefreshToken(payload: TokenPayload): string {
-  const options: JwtSignOptions = {
-    expiresIn: config.jwt.refreshExpiresIn,
-    algorithm: 'HS256',
-  };
+    const options: JwtSignOptions = {
+      expiresIn: config.jwt.refreshExpiresIn,
+      algorithm: 'HS256',
+    };
 
-  return jwt.sign(payload, config.jwt.refreshSecret, options);
-}
-
+    return jwt.sign(payload, config.jwt.refreshSecret, options);
+  }
 
   // Verify access token
   verifyAccessToken(token: string): DecodedToken {
@@ -54,12 +64,10 @@ private generateAccessToken(payload: TokenPayload): string {
     const decoded = this.verifyRefreshToken(token);
     const expiresAt = new Date(decoded.exp * 1000);
 
-    await prisma.refreshToken.create({
-      data: {
-        token,
-        userId,
-        expiresAt,
-      },
+    await this.repository.createRefreshToken({
+      token,
+      userId,
+      expiresAt,
     });
   }
 
@@ -72,9 +80,7 @@ private generateAccessToken(payload: TokenPayload): string {
   // Register new user
   async register(data: RegisterDto): Promise<AuthResponse> {
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
+    const existingUser = await this.repository.findUserByEmail(data.email);
 
     if (existingUser) {
       throw new ConflictError('User with this email already exists');
@@ -84,13 +90,11 @@ private generateAccessToken(payload: TokenPayload): string {
     const hashedPassword = await bcrypt.hash(data.password, 12);
 
     // Create user
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      },
+    const user = await this.repository.createUser({
+      email: data.email,
+      password: hashedPassword,
+      firstName: data.firstName,
+      lastName: data.lastName,
     });
 
     // Generate tokens
@@ -117,9 +121,7 @@ private generateAccessToken(payload: TokenPayload): string {
   // Login user
   async login(data: LoginDto): Promise<AuthResponse> {
     // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: data.email },
-    });
+    const user = await this.repository.findUserByEmail(data.email);
 
     if (!user) {
       throw new UnauthorizedError('Invalid email or password');
@@ -137,10 +139,7 @@ private generateAccessToken(payload: TokenPayload): string {
     }
 
     // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    await this.repository.updateLastLogin(user.id);
 
     // Generate tokens
     const tokenPayload: TokenPayload = {
@@ -169,10 +168,7 @@ private generateAccessToken(payload: TokenPayload): string {
     const decoded = this.verifyRefreshToken(refreshToken);
 
     // Check if refresh token exists in database
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true },
-    });
+    const storedToken = await this.repository.findRefreshTokenWithUser(refreshToken);
 
     if (!storedToken) {
       throw new UnauthorizedError('Invalid refresh token');
@@ -180,9 +176,7 @@ private generateAccessToken(payload: TokenPayload): string {
 
     // Check if token is expired
     if (storedToken.expiresAt < new Date()) {
-      await prisma.refreshToken.delete({
-        where: { token: refreshToken },
-      });
+      await this.repository.deleteRefreshToken(refreshToken);
       throw new UnauthorizedError('Refresh token expired');
     }
 
@@ -201,9 +195,7 @@ private generateAccessToken(payload: TokenPayload): string {
     const newRefreshToken = this.generateRefreshToken(tokenPayload);
 
     // Delete old refresh token and store new one
-    await prisma.refreshToken.delete({
-      where: { token: refreshToken },
-    });
+    await this.repository.deleteRefreshToken(refreshToken);
     await this.storeRefreshToken(decoded.userId, newRefreshToken);
 
     return {
@@ -214,23 +206,17 @@ private generateAccessToken(payload: TokenPayload): string {
 
   // Logout user (invalidate refresh token)
   async logout(refreshToken: string): Promise<void> {
-    await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
-    });
+    await this.repository.deleteRefreshToken(refreshToken);
   }
 
   // Logout from all devices (invalidate all refresh tokens)
   async logoutAll(userId: string): Promise<void> {
-    await prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
+    await this.repository.deleteUserRefreshTokens(userId);
   }
 
   // Get user by ID (for auth middleware)
   async getUserById(userId: string): Promise<Omit<User, 'password'> | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await this.repository.findUserById(userId);
 
     if (!user) {
       return null;
@@ -239,5 +225,3 @@ private generateAccessToken(payload: TokenPayload): string {
     return this.excludePassword(user);
   }
 }
-
-

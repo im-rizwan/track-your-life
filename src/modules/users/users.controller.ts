@@ -27,7 +27,7 @@ export class UsersController {
   getAllUsers = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    
+
     const result = await this.service.getAllUsers(page, limit);
     sendSuccess(res, result);
   });
@@ -35,7 +35,7 @@ export class UsersController {
   updateUser = asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
     const id = req.params.id as string;
     const data = req.body as UpdateUserDto;
-    
+
     const user = await this.service.updateUser(id, data);
     sendSuccess(res, user, 'User updated successfully');
   });

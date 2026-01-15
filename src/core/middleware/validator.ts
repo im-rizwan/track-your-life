@@ -17,7 +17,7 @@ export const validate = (schema: z.ZodTypeAny) => {
           path: issue.path.join('.'),
           message: issue.message,
         }));
-        
+
         next(new ValidationError(JSON.stringify(errorMessages)));
         return;
       }

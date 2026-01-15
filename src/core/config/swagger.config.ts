@@ -6,7 +6,8 @@ const swaggerDefinition = {
   info: {
     title: 'Track-Yr-Life API',
     version: '1.0.0',
-    description: 'Production-grade Node.js + Express REST API with TypeScript, Prisma, and PostgreSQL',
+    description:
+      'Production-grade Node.js + Express REST API with TypeScript, Prisma, and PostgreSQL',
     contact: {
       name: 'API Support',
       email: 'support@trackyrlife.com',
@@ -17,15 +18,16 @@ const swaggerDefinition = {
     },
   },
   servers: [
-  {
-    url: config.isDevelopment 
-      ? `http://localhost:${config.port}/api` 
-      : 'https://your-production-domain.com/api',
-    description: config.isDevelopment ? 'Development server' : 'Production server',
-  },{
-    url:'https://track-your-life.onrender.com/api'
-  }
-],
+    {
+      url: config.isDevelopment
+        ? `http://localhost:${config.port}/api`
+        : 'https://your-production-domain.com/api',
+      description: config.isDevelopment ? 'Development server' : 'Production server',
+    },
+    {
+      url: 'https://track-your-life.onrender.com/api',
+    },
+  ],
   components: {
     securitySchemes: {
       BearerAuth: {

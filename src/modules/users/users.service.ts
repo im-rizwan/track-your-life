@@ -47,7 +47,10 @@ export class UsersService {
     return this.repository.excludePassword(user);
   }
 
-  async getAllUsers(page = 1, limit = 10): Promise<{ users: PublicUser[]; total: number; page: number; totalPages: number }> {
+  async getAllUsers(
+    page = 1,
+    limit = 10
+  ): Promise<{ users: PublicUser[]; total: number; page: number; totalPages: number }> {
     const skip = (page - 1) * limit;
     const [users, total] = await Promise.all([
       this.repository.findAll(skip, limit),
