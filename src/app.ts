@@ -12,7 +12,7 @@ import { requestDuration } from './core/middleware/request-duration';
 
 export const createApp = (): Application => {
   const app = express();
-
+  app.set('trust proxy', 1);
   // Enhanced security headers
   app.use(
     helmet({

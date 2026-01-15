@@ -22,7 +22,9 @@ const swaggerDefinition = {
       ? `http://localhost:${config.port}/api` 
       : 'https://your-production-domain.com/api',
     description: config.isDevelopment ? 'Development server' : 'Production server',
-  },
+  },{
+    url:'https://track-your-life.onrender.com/api'
+  }
 ],
   components: {
     securitySchemes: {
