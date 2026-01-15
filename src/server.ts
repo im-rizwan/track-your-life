@@ -7,6 +7,9 @@ import { connectDatabase, disconnectDatabase } from './core/database/prisma.clie
 const app = createApp();
 const server = http.createServer(app);
 
+// Track active connections
+let isShuttingDown = false;
+
 const startServer = async (): Promise<void> => {
   try {
     // Connect to database first
@@ -15,6 +18,8 @@ const startServer = async (): Promise<void> => {
     // Start HTTP server
     server.listen(config.port, () => {
       logger.info(`🚀 Server running in ${config.env} mode on port ${config.port}`);
+      logger.info(`📚 API Documentation: http://localhost:${config.port}/api-docs`);
+      logger.info(`🏥 Health Check: http://localhost:${config.port}/health`);
     });
   } catch (error) {
     logger.error('Failed to start server', { error });
@@ -23,15 +28,26 @@ const startServer = async (): Promise<void> => {
 };
 
 const gracefulShutdown = async (signal: string): Promise<void> => {
+  if (isShuttingDown) {
+    return;
+  }
+  
+  isShuttingDown = true;
   logger.info(`${signal} received, starting graceful shutdown`);
 
+  // Stop accepting new connections
   server.close(async () => {
     logger.info('HTTP server closed');
     
-    // Disconnect database
-    await disconnectDatabase();
-    
-    process.exit(0);
+    try {
+      // Disconnect database
+      await disconnectDatabase();
+      logger.info('✅ Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during shutdown', { error });
+      process.exit(1);
+    }
   });
 
   // Force shutdown after 30 seconds
@@ -41,17 +57,19 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   }, 30000);
 };
 
+// Handle termination signals
 process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
+// Handle uncaught errors
 process.on('unhandledRejection', (reason: unknown) => {
   logger.error('Unhandled Rejection', { reason });
-  process.exit(1);
+  void gracefulShutdown('unhandledRejection');
 });
 
 process.on('uncaughtException', (error: Error) => {
   logger.error('Uncaught Exception', { error: error.message, stack: error.stack });
-  process.exit(1);
+  void gracefulShutdown('uncaughtException');
 });
 
 void startServer();
