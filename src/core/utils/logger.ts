@@ -27,21 +27,6 @@ export const logger = winston.createLogger({
   ],
 });
 
-// Production: Add file transports
-if (config.isProduction) {
-  logger.add(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    })
-  );
-  logger.add(
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      maxsize: 5242880,
-      maxFiles: 5,
-    })
-  );
-}
+// Note: File transports removed for containerized environments
+// Cloud platforms (Render, AWS) capture stdout/stderr automatically
+// For local file logging, use external log aggregation tools
