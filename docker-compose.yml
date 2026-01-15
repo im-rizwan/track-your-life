@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: trackyrlife-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trackyrlife_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application (Development)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: trackyrlife-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trackyrlife_dev
+      JWT_SECRET: dev-jwt-secret-min-32-characters-long-for-development
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: dev-refresh-secret-min-32-characters-long-for-dev
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGIN: '*'
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      LOG_LEVEL: debug
+    ports:
+      - '3000:3000'
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+
+volumes:
+  postgres_data:
