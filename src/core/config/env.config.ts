@@ -25,6 +25,21 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+
+  // Body size limit
+  BODY_LIMIT: z.string().default('1mb'),
+
+  // EmailJS
+  EMAILJS_SERVICE_ID: z.string().min(1),
+  EMAILJS_TEMPLATE_ID: z.string().min(1),
+  EMAILJS_PUBLIC_KEY: z.string().min(1),
+  EMAILJS_PRIVATE_KEY: z.string().min(1),
+
+  // Email toggle (for testing)
+  DISABLE_EMAIL: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((val) => val === 'true'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -68,4 +83,12 @@ export const config = {
   logging: {
     level: env.LOG_LEVEL,
   },
+  emailjs: {
+    serviceId: env.EMAILJS_SERVICE_ID,
+    templateId: env.EMAILJS_TEMPLATE_ID,
+    publicKey: env.EMAILJS_PUBLIC_KEY,
+    privateKey: env.EMAILJS_PRIVATE_KEY,
+  },
+  disableEmail: env.DISABLE_EMAIL,
+  bodyLimit: env.BODY_LIMIT,
 };

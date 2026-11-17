@@ -1,0 +1,5202 @@
+openapi: 3.0.0
+info:
+  title: Muhasabah API
+  version: 1.0.0
+  description: >-
+    Production-grade Node.js + Express REST API with TypeScript, Prisma, and
+    PostgreSQL
+  contact:
+    name: API Support
+    email: support@trackyrlife.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://track-your-life.onrender.com/api
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Enter your JWT token in the format: Bearer <token>'
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Validation failed
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        message:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxxx123456789
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        firstName:
+          type: string
+          nullable: true
+          example: John
+        lastName:
+          type: string
+          nullable: true
+          example: Doe
+        isActive:
+          type: boolean
+          example: true
+        emailVerified:
+          type: boolean
+          example: false
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        passwordChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/Tokens'
+    CustomizationItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxxx123456789
+        name:
+          type: string
+          example: Masjid
+        isDefault:
+          type: boolean
+          example: true
+        isActive:
+          type: boolean
+          example: true
+        userId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            total:
+              type: integer
+              example: 50
+            page:
+              type: integer
+              example: 1
+            totalPages:
+              type: integer
+              example: 3
+            limit:
+              type: integer
+              example: 20
+        message:
+          type: string
+tags:
+  - name: Authentication
+    description: User authentication and authorization endpoints
+  - name: Users
+    description: User profile and account management (protected)
+  - name: Health
+    description: Health check endpoints
+  - name: Prayer Times
+    description: Prayer times configuration and retrieval
+  - name: Reference
+    description: System reference data (read-only lookups)
+  - name: Customization - Prayer Locations
+    description: Manage prayer location options (system defaults + custom)
+  - name: Customization - Other Prayer Types
+    description: Manage other prayer type options (system defaults + custom)
+  - name: Customization - Dhikr Types
+    description: Manage dhikr type options (system defaults + custom)
+  - name: Customization - Fasting Types
+    description: Manage fasting type options (system defaults + custom)
+  - name: Customization - Charity Types
+    description: Manage charity type options (system defaults + custom)
+  - name: Customization - Islamic Study Subjects
+    description: Manage Islamic study subject options (system defaults + custom)
+  - name: Customization - Study Modes
+    description: Manage study mode options (system defaults + custom)
+  - name: Customization - Fitness Activities
+    description: Manage fitness activity options (system defaults + custom)
+  - name: Customization - Nutrition Foods
+    description: Manage nutrition food options (system defaults + custom)
+  - name: Customization - Fitrah Practices
+    description: Manage fitrah practice options (system defaults + custom)
+  - name: Customization - Skills
+    description: Manage user-owned skills and their topics
+  - name: Customization - Intentions
+    description: Manage user-owned intentions
+  - name: Tracking - Daily Prayers
+    description: Log and manage daily obligatory prayer records
+  - name: Tracking - Other Prayers
+    description: Log and manage voluntary/sunnah prayer records
+  - name: Tracking - Quran
+    description: Log and manage Quran reading/memorization records
+  - name: Tracking - Dhikr
+    description: Log and manage dhikr (remembrance) records
+  - name: Tracking - Fasting
+    description: Log and manage fasting records
+  - name: Tracking - Charity
+    description: Log and manage charity/sadaqah records
+  - name: Tracking - Islamic Study
+    description: Log and manage Islamic study session records
+  - name: Tracking - Skill Progress
+    description: Log and manage skill learning progress records
+  - name: Tracking - Fitness
+    description: Log and manage fitness/exercise records
+  - name: Tracking - Nutrition
+    description: Log and manage nutrition/food intake records
+  - name: Tracking - Sleep
+    description: Log and manage sleep records
+  - name: Tracking - Fitrah Practices
+    description: Log and manage fitrah (natural hygiene) practice records
+  - name: Tracking - Tasks
+    description: Log and manage daily task records
+  - name: Tracking - Intentions
+    description: Log and manage intention tracking records
+paths:
+  /v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account and send email verification OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SecurePass123
+      responses:
+        '201':
+          description: User registered successfully, verification email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      email:
+                        type: string
+                        example: user@example.com
+                      message:
+                        type: string
+                        example: >-
+                          Registration successful. Please check your email for
+                          verification code.
+                  message:
+                    type: string
+                    example: User registered successfully
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      summary: Verify email with OTP
+      description: Verify user's email address using the OTP sent during registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                otp:
+                  type: string
+                  pattern: ^\d{6}$
+                  example: '123456'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+                  message:
+                    type: string
+                    example: Email verified successfully
+        '409':
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/resend-verification:
+    post:
+      tags:
+        - Authentication
+      summary: Resend email verification OTP
+      description: Send a new verification OTP to the user's email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: >-
+                          If the email exists and is not verified, a new
+                          verification code has been sent.
+                  message:
+                    type: string
+                    example: Verification code sent
+        '409':
+          description: Email already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: Authenticate user and return tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/AuthResponse'
+                  message:
+                    type: string
+                    example: Login successful
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Initiate password reset
+      description: Send password reset OTP to user's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Password reset code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: >-
+                          If the email exists, a password reset code has been
+                          sent.
+  /v1/auth/resend-reset-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Resend password reset OTP
+      description: Send a new password reset OTP to the user's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Password reset code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: >-
+                          If the email exists, a new password reset code has
+                          been sent.
+  /v1/auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Reset user password with verified OTP and invalidate all sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - otp
+                - newPassword
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                otp:
+                  type: string
+                  pattern: ^\d{6}$
+                  example: '123456'
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: NewSecurePass123
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: >-
+                          Password reset successful. Please log in with your new
+                          password.
+        '422':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: >-
+        Use a valid refresh token to obtain new access and refresh tokens. The
+        old refresh token is invalidated (token rotation).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      refreshToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  message:
+                    type: string
+                    example: Token refreshed successfully
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout user
+      description: Invalidate the provided refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /v1/auth/logout-all:
+    post:
+      tags:
+        - Authentication
+      summary: Logout from all devices
+      description: Invalidate all refresh tokens for the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logged out from all devices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/session:
+    get:
+      tags:
+        - Authentication
+      summary: Get current session
+      description: Validate current session token and return user authentication status
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session valid, user profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized - invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/delete-account/initiate:
+    post:
+      tags:
+        - Authentication
+      summary: Initiate account deletion
+      description: Verify password and send OTP to confirm account deletion
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+                - confirmation
+              properties:
+                password:
+                  type: string
+                  format: password
+                  example: CurrentPassword123
+                confirmation:
+                  type: string
+                  example: DELETE
+                  description: Must be exactly "DELETE" (case-sensitive)
+      responses:
+        '200':
+          description: Account deletion initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: >-
+                          Account deletion OTP sent to your email. Please verify
+                          to complete deletion.
+        '401':
+          description: Unauthorized or invalid password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/auth/delete-account/confirm:
+    post:
+      tags:
+        - Authentication
+      summary: Confirm account deletion
+      description: Verify OTP and permanently delete user account with all data
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - otp
+              properties:
+                otp:
+                  type: string
+                  pattern: ^\d{6}$
+                  example: '123456'
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Account deleted successfully.
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/customization/prayer-locations:
+    get:
+      tags:
+        - Customization - Prayer Locations
+      summary: List prayer locations
+      description: Returns system defaults (isDefault=true) merged with user's custom items
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Prayer locations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CustomizationItem'
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Prayer Locations
+      summary: Create a custom prayer location
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: University Prayer Room
+      responses:
+        '201':
+          description: Created successfully
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/prayer-locations/{id}:
+    put:
+      tags:
+        - Customization - Prayer Locations
+      summary: Update a custom prayer location
+      description: Only user-created items can be updated. System defaults return 403.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Prayer Locations
+      summary: Delete a custom prayer location
+      description: >-
+        Only user-created items can be deleted. Items referenced in tracking
+        logs return 409.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/other-prayer-types:
+    get:
+      tags:
+        - Customization - Other Prayer Types
+      summary: List other prayer types
+      description: >-
+        Returns system defaults (Tahajjud, Duha, Witr, etc.) merged with user's
+        custom types
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Other prayer types retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                          example: Tahajjud
+                        requiresRakahCount:
+                          type: boolean
+                        isDefault:
+                          type: boolean
+                        isActive:
+                          type: boolean
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Other Prayer Types
+      summary: Create a custom other prayer type
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - requiresRakahCount
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Istikhara
+                requiresRakahCount:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Created successfully
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/other-prayer-types/{id}:
+    put:
+      tags:
+        - Customization - Other Prayer Types
+      summary: Update a custom other prayer type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                requiresRakahCount:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Other Prayer Types
+      summary: Delete a custom other prayer type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/dhikr-types:
+    get:
+      tags:
+        - Customization - Dhikr Types
+      summary: List dhikr types
+      description: Returns system defaults merged with user's custom dhikr types
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dhikr types retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Dhikr Types
+      summary: Create a custom dhikr type
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Istighfar
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/dhikr-types/{id}:
+    put:
+      tags:
+        - Customization - Dhikr Types
+      summary: Update a custom dhikr type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Dhikr Types
+      summary: Delete a custom dhikr type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/fasting-types:
+    get:
+      tags:
+        - Customization - Fasting Types
+      summary: List fasting types
+      description: Returns system defaults merged with user's custom fasting types
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fasting types retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Fasting Types
+      summary: Create a custom fasting type
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Shawwal Fasting
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/fasting-types/{id}:
+    put:
+      tags:
+        - Customization - Fasting Types
+      summary: Update a custom fasting type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Fasting Types
+      summary: Delete a custom fasting type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/charity-types:
+    get:
+      tags:
+        - Customization - Charity Types
+      summary: List charity types
+      description: Returns system defaults merged with user's custom charity types
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Charity types retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Charity Types
+      summary: Create a custom charity type
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Waqf
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/charity-types/{id}:
+    put:
+      tags:
+        - Customization - Charity Types
+      summary: Update a custom charity type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Charity Types
+      summary: Delete a custom charity type
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/islamic-study-subjects:
+    get:
+      tags:
+        - Customization - Islamic Study Subjects
+      summary: List Islamic study subjects
+      description: Returns system defaults merged with user's custom subjects
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Islamic study subjects retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Islamic Study Subjects
+      summary: Create a custom Islamic study subject
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Usul al-Fiqh
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/islamic-study-subjects/{id}:
+    put:
+      tags:
+        - Customization - Islamic Study Subjects
+      summary: Update a custom Islamic study subject
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Islamic Study Subjects
+      summary: Delete a custom Islamic study subject
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/study-modes:
+    get:
+      tags:
+        - Customization - Study Modes
+      summary: List study modes
+      description: Returns system defaults merged with user's custom study modes
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Study modes retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Study Modes
+      summary: Create a custom study mode
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Online Course
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/study-modes/{id}:
+    put:
+      tags:
+        - Customization - Study Modes
+      summary: Update a custom study mode
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Study Modes
+      summary: Delete a custom study mode
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/fitness-activities:
+    get:
+      tags:
+        - Customization - Fitness Activities
+      summary: List fitness activities
+      description: Returns system defaults merged with user's custom fitness activities
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fitness activities retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Fitness Activities
+      summary: Create a custom fitness activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Swimming
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/fitness-activities/{id}:
+    put:
+      tags:
+        - Customization - Fitness Activities
+      summary: Update a custom fitness activity
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Fitness Activities
+      summary: Delete a custom fitness activity
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/nutrition-foods:
+    get:
+      tags:
+        - Customization - Nutrition Foods
+      summary: List nutrition foods
+      description: Returns system defaults merged with user's custom nutrition foods
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Nutrition foods retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Nutrition Foods
+      summary: Create a custom nutrition food
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Dates
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/nutrition-foods/{id}:
+    put:
+      tags:
+        - Customization - Nutrition Foods
+      summary: Update a custom nutrition food
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Nutrition Foods
+      summary: Delete a custom nutrition food
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/fitrah-practices:
+    get:
+      tags:
+        - Customization - Fitrah Practices
+      summary: List fitrah practices
+      description: Returns system defaults merged with user's custom fitrah practices
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fitrah practices retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Fitrah Practices
+      summary: Create a custom fitrah practice
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Miswak
+      responses:
+        '201':
+          description: Created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/fitrah-practices/{id}:
+    put:
+      tags:
+        - Customization - Fitrah Practices
+      summary: Update a custom fitrah practice
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot modify system defaults
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Fitrah Practices
+      summary: Delete a custom fitrah practice
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Cannot delete system defaults
+        '409':
+          description: Item referenced in tracking logs
+  /v1/customization/skills:
+    get:
+      tags:
+        - Customization - Skills
+      summary: List user's skills
+      description: Returns all user-owned skills (no system defaults)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Skills retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Skills
+      summary: Create a skill
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Arabic Language
+      responses:
+        '201':
+          description: Skill created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/skills/{id}:
+    put:
+      tags:
+        - Customization - Skills
+      summary: Update a skill
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '404':
+          description: Skill not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Skills
+      summary: Delete a skill
+      description: Skills referenced in tracking logs cannot be deleted (409).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Skill not found
+        '409':
+          description: Skill referenced in tracking logs
+  /v1/customization/skills/{skillId}/topics:
+    get:
+      tags:
+        - Customization - Skills
+      summary: List topics for a skill
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: skillId
+          required: true
+          schema:
+            type: string
+          description: Parent skill ID
+      responses:
+        '200':
+          description: Skill topics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                          example: Nahw (Grammar)
+                        isPending:
+                          type: boolean
+                          example: true
+        '401':
+          description: Unauthorized
+        '404':
+          description: Skill not found
+    post:
+      tags:
+        - Customization - Skills
+      summary: Create a topic for a skill
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: skillId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Nahw (Grammar)
+      responses:
+        '201':
+          description: Topic created
+        '401':
+          description: Unauthorized
+        '404':
+          description: Skill not found
+        '422':
+          description: Validation error
+  /v1/customization/skills/{skillId}/topics/{topicId}:
+    patch:
+      tags:
+        - Customization - Skills
+      summary: Update a skill topic
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: skillId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                isPending:
+                  type: boolean
+      responses:
+        '200':
+          description: Topic updated
+        '401':
+          description: Unauthorized
+        '404':
+          description: Topic not found
+    delete:
+      tags:
+        - Customization - Skills
+      summary: Delete a skill topic
+      description: Topics referenced in tracking logs cannot be deleted (409).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: skillId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: topicId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Topic deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Topic not found
+        '409':
+          description: Topic referenced in tracking logs
+  /v1/customization/intentions:
+    get:
+      tags:
+        - Customization - Intentions
+      summary: List user's intentions
+      description: Returns all user-owned intentions (no system defaults)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Intentions retrieved
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Customization - Intentions
+      summary: Create an intention
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 200
+                  example: Seek knowledge for the sake of Allah
+      responses:
+        '201':
+          description: Intention created
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/customization/intentions/{id}:
+    put:
+      tags:
+        - Customization - Intentions
+      summary: Update an intention
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 200
+      responses:
+        '200':
+          description: Updated
+        '401':
+          description: Unauthorized
+        '404':
+          description: Intention not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Customization - Intentions
+      summary: Delete an intention
+      description: Intentions referenced in tracking logs or tasks cannot be deleted (409).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Intention not found
+        '409':
+          description: Intention referenced in tracking logs
+  /v1/health:
+    get:
+      tags:
+        - Health
+      summary: API health check
+      description: Check if the API is running
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 123.456
+                  environment:
+                    type: string
+                    example: development
+  /v1/health/db:
+    get:
+      tags:
+        - Health
+      summary: Database health check
+      description: Check if the database connection is working
+      responses:
+        '200':
+          description: Database is connected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  database:
+                    type: string
+                    example: connected
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Database is disconnected
+  /v1/prayer-times/config:
+    get:
+      tags:
+        - Prayer Times
+      summary: Get prayer time configuration
+      description: >-
+        Retrieve user's current prayer time configuration including calculation
+        method, API method, manual times, and adjustments
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: clx123abc
+                      userId:
+                        type: string
+                        example: clx456def
+                      calculationMode:
+                        type: string
+                        enum:
+                          - AUTOMATIC
+                          - MANUAL
+                        example: AUTOMATIC
+                      apiMethod:
+                        type: string
+                        enum:
+                          - MWL
+                          - ISNA
+                          - EGYPT
+                          - MAKKAH
+                          - KARACHI
+                          - TEHRAN
+                        nullable: true
+                        example: MWL
+                      manualFajr:
+                        type: string
+                        nullable: true
+                        example: null
+                      manualZuhr:
+                        type: string
+                        nullable: true
+                        example: null
+                      manualAsr:
+                        type: string
+                        nullable: true
+                        example: null
+                      manualMaghrib:
+                        type: string
+                        nullable: true
+                        example: null
+                      manualIsha:
+                        type: string
+                        nullable: true
+                        example: null
+                      fajrAdjustment:
+                        type: integer
+                        example: 0
+                      zuhrAdjustment:
+                        type: integer
+                        example: 0
+                      asrAdjustment:
+                        type: integer
+                        example: 0
+                      maghribAdjustment:
+                        type: integer
+                        example: 0
+                      ishaAdjustment:
+                        type: integer
+                        example: 0
+                      lastFetchedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: '2026-02-12T10:30:00.000Z'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Prayer times not configured
+    put:
+      tags:
+        - Prayer Times
+      summary: Update prayer time configuration
+      description: >-
+        Update prayer time calculation method (automatic vs manual), API method,
+        or manual times. Clears cache when method changes.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - calculationMode
+              properties:
+                calculationMode:
+                  type: string
+                  enum:
+                    - AUTOMATIC
+                    - MANUAL
+                  example: AUTOMATIC
+                apiMethod:
+                  type: string
+                  enum:
+                    - MWL
+                    - ISNA
+                    - EGYPT
+                    - MAKKAH
+                    - KARACHI
+                    - TEHRAN
+                  example: MWL
+                  description: Required for AUTOMATIC mode
+                manualTimes:
+                  type: object
+                  description: Required for MANUAL mode
+                  properties:
+                    fajr:
+                      type: string
+                      pattern: ^([01]\d|2[0-3]):([0-5]\d)$
+                      example: '05:30'
+                    zuhr:
+                      type: string
+                      pattern: ^([01]\d|2[0-3]):([0-5]\d)$
+                      example: '12:15'
+                    asr:
+                      type: string
+                      pattern: ^([01]\d|2[0-3]):([0-5]\d)$
+                      example: '15:45'
+                    maghrib:
+                      type: string
+                      pattern: ^([01]\d|2[0-3]):([0-5]\d)$
+                      example: '18:30'
+                    isha:
+                      type: string
+                      pattern: ^([01]\d|2[0-3]):([0-5]\d)$
+                      example: '20:00'
+      responses:
+        '200':
+          description: Configuration updated successfully
+        '400':
+          description: >-
+            Invalid request (missing location for automatic mode or invalid
+            data)
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/prayer-times/adjustments:
+    patch:
+      tags:
+        - Prayer Times
+      summary: Update prayer time adjustments
+      description: >-
+        Fine-tune automatically calculated prayer times by adjusting each prayer
+        time by -15 to +15 minutes. Only works in AUTOMATIC mode.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fajrAdjustment:
+                  type: integer
+                  minimum: -15
+                  maximum: 15
+                  example: 2
+                zuhrAdjustment:
+                  type: integer
+                  minimum: -15
+                  maximum: 15
+                  example: 0
+                asrAdjustment:
+                  type: integer
+                  minimum: -15
+                  maximum: 15
+                  example: -5
+                maghribAdjustment:
+                  type: integer
+                  minimum: -15
+                  maximum: 15
+                  example: 3
+                ishaAdjustment:
+                  type: integer
+                  minimum: -15
+                  maximum: 15
+                  example: 0
+      responses:
+        '200':
+          description: Adjustments updated successfully
+        '400':
+          description: Cannot adjust manual prayer times
+        '401':
+          description: Unauthorized
+        '404':
+          description: Configuration not found
+        '422':
+          description: Validation error (adjustment out of range)
+  /v1/prayer-times/today:
+    get:
+      tags:
+        - Prayer Times
+      summary: Get today's prayer times
+      description: >-
+        Retrieve today's prayer times based on user's configuration. Returns
+        cached times if available and fresh (<24h), otherwise fetches from API.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Prayer times retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                        example: '2026-02-12'
+                      fajr:
+                        type: string
+                        example: '05:32'
+                      zuhr:
+                        type: string
+                        example: '12:18'
+                      asr:
+                        type: string
+                        example: '15:42'
+                      maghrib:
+                        type: string
+                        example: '18:25'
+                      isha:
+                        type: string
+                        example: '19:55'
+                      source:
+                        type: string
+                        enum:
+                          - API
+                          - MANUAL
+                        example: API
+        '400':
+          description: Location not set or manual times incomplete
+        '401':
+          description: Unauthorized
+        '404':
+          description: Prayer times not configured
+        '503':
+          description: External prayer time service unavailable
+  /v1/prayer-times/refresh:
+    post:
+      tags:
+        - Prayer Times
+      summary: Manually refresh prayer times
+      description: >-
+        Force refresh prayer times from API, bypassing cache. Only works in
+        AUTOMATIC mode. Used for pull-to-refresh functionality.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Prayer times refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                        example: '2026-02-12'
+                      fajr:
+                        type: string
+                        example: '05:32'
+                      zuhr:
+                        type: string
+                        example: '12:18'
+                      asr:
+                        type: string
+                        example: '15:42'
+                      maghrib:
+                        type: string
+                        example: '18:25'
+                      isha:
+                        type: string
+                        example: '19:55'
+                      source:
+                        type: string
+                        example: API
+        '400':
+          description: Cannot refresh manual prayer times
+        '401':
+          description: Unauthorized
+        '404':
+          description: Configuration not found or user not found
+        '503':
+          description: External prayer time service unavailable
+  /v1/reference/prayer-statuses:
+    get:
+      tags:
+        - Reference
+      summary: Get prayer status options
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Prayer statuses retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/quran-activity-types:
+    get:
+      tags:
+        - Reference
+      summary: Get Quran activity type options
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Quran activity types retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/task-priorities:
+    get:
+      tags:
+        - Reference
+      summary: Get task priority options
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Task priorities retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/task-statuses:
+    get:
+      tags:
+        - Reference
+      summary: Get task status options
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Task statuses retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/fitness-intensities:
+    get:
+      tags:
+        - Reference
+      summary: Get fitness intensity options
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Fitness intensities retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/surahs:
+    get:
+      tags:
+        - Reference
+      summary: Get all 114 Quran surahs
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Surahs retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/juzz:
+    get:
+      tags:
+        - Reference
+      summary: Get all 30 juzz of the Quran
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Juzz retrieved
+        '401':
+          description: Unauthorized
+  /v1/reference/countries:
+    get:
+      tags:
+        - Reference
+      summary: Get list of countries
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Countries retrieved
+        '401':
+          description: Unauthorized
+  /v1/tracking/prayers/daily:
+    get:
+      tags:
+        - Tracking - Daily Prayers
+      summary: List daily prayer logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of daily prayer logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Daily Prayers
+      summary: Log a daily prayer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prayerName
+                - prayerStatusId
+                - date
+              properties:
+                prayerName:
+                  type: string
+                  enum:
+                    - FAJR
+                    - ZUHR
+                    - ASR
+                    - MAGHRIB
+                    - ISHA
+                    - JUMMAH
+                prayerStatusId:
+                  type: string
+                prayerLocationId:
+                  type: string
+                khushuRating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/prayers/daily/{id}:
+    get:
+      tags:
+        - Tracking - Daily Prayers
+      summary: Get a daily prayer log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the daily prayer log
+      responses:
+        '200':
+          description: Daily prayer log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Daily Prayers
+      summary: Update a daily prayer log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the daily prayer log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                prayerName:
+                  type: string
+                  enum:
+                    - FAJR
+                    - ZUHR
+                    - ASR
+                    - MAGHRIB
+                    - ISHA
+                    - JUMMAH
+                prayerStatusId:
+                  type: string
+                prayerLocationId:
+                  type: string
+                khushuRating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Daily Prayers
+      summary: Delete a daily prayer log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the daily prayer log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/prayers/other:
+    get:
+      tags:
+        - Tracking - Other Prayers
+      summary: List other prayer logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of other prayer logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Other Prayers
+      summary: Log an other prayer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - otherPrayerTypeId
+                - date
+              properties:
+                otherPrayerTypeId:
+                  type: string
+                rakahs:
+                  type: integer
+                  minimum: 2
+                  maximum: 12
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/prayers/other/{id}:
+    get:
+      tags:
+        - Tracking - Other Prayers
+      summary: Get an other prayer log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the other prayer log
+      responses:
+        '200':
+          description: Other prayer log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Other Prayers
+      summary: Update an other prayer log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the other prayer log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                otherPrayerTypeId:
+                  type: string
+                rakahs:
+                  type: integer
+                  minimum: 2
+                  maximum: 12
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Other Prayers
+      summary: Delete an other prayer log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the other prayer log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/quran:
+    get:
+      tags:
+        - Tracking - Quran
+      summary: List Quran logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of Quran logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Quran
+      summary: Log a Quran activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - surahName
+                - surahNumber
+                - quranActivityTypeId
+                - versesCount
+                - date
+              properties:
+                surahName:
+                  type: string
+                surahNumber:
+                  type: integer
+                  minimum: 1
+                  maximum: 114
+                quranActivityTypeId:
+                  type: string
+                versesCount:
+                  type: integer
+                  minimum: 1
+                juzzNumber:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/quran/{id}:
+    get:
+      tags:
+        - Tracking - Quran
+      summary: Get a Quran log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Quran log
+      responses:
+        '200':
+          description: Quran log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Quran
+      summary: Update a Quran log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Quran log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                surahName:
+                  type: string
+                surahNumber:
+                  type: integer
+                  minimum: 1
+                  maximum: 114
+                quranActivityTypeId:
+                  type: string
+                versesCount:
+                  type: integer
+                  minimum: 1
+                juzzNumber:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Quran
+      summary: Delete a Quran log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Quran log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/dhikr:
+    get:
+      tags:
+        - Tracking - Dhikr
+      summary: List dhikr logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of dhikr logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Dhikr
+      summary: Log a dhikr entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dhikrTypeId
+                - count
+                - date
+              properties:
+                dhikrTypeId:
+                  type: string
+                count:
+                  type: integer
+                  minimum: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/dhikr/{id}:
+    get:
+      tags:
+        - Tracking - Dhikr
+      summary: Get a dhikr log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the dhikr log
+      responses:
+        '200':
+          description: Dhikr log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Dhikr
+      summary: Update a dhikr log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the dhikr log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                dhikrTypeId:
+                  type: string
+                count:
+                  type: integer
+                  minimum: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Dhikr
+      summary: Delete a dhikr log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the dhikr log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/fasting:
+    get:
+      tags:
+        - Tracking - Fasting
+      summary: List fasting logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of fasting logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Fasting
+      summary: Log a fasting entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fastingTypeId
+                - date
+              properties:
+                fastingTypeId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/fasting/{id}:
+    get:
+      tags:
+        - Tracking - Fasting
+      summary: Get a fasting log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fasting log
+      responses:
+        '200':
+          description: Fasting log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Fasting
+      summary: Update a fasting log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fasting log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                fastingTypeId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Fasting
+      summary: Delete a fasting log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fasting log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/charity:
+    get:
+      tags:
+        - Tracking - Charity
+      summary: List charity logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of charity logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Charity
+      summary: Log a charity entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - charityTypeId
+                - date
+              properties:
+                charityTypeId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/charity/{id}:
+    get:
+      tags:
+        - Tracking - Charity
+      summary: Get a charity log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the charity log
+      responses:
+        '200':
+          description: Charity log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Charity
+      summary: Update a charity log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the charity log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                charityTypeId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Charity
+      summary: Delete a charity log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the charity log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/islamic-study:
+    get:
+      tags:
+        - Tracking - Islamic Study
+      summary: List Islamic study logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of Islamic study logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Islamic Study
+      summary: Log an Islamic study session
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - subjectId
+                - studyModeId
+                - durationMins
+                - date
+              properties:
+                subjectId:
+                  type: string
+                studyModeId:
+                  type: string
+                durationMins:
+                  type: integer
+                  minimum: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/islamic-study/{id}:
+    get:
+      tags:
+        - Tracking - Islamic Study
+      summary: Get an Islamic study log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Islamic study log
+      responses:
+        '200':
+          description: Islamic study log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Islamic Study
+      summary: Update an Islamic study log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Islamic study log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                subjectId:
+                  type: string
+                studyModeId:
+                  type: string
+                durationMins:
+                  type: integer
+                  minimum: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Islamic Study
+      summary: Delete an Islamic study log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the Islamic study log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/skills:
+    get:
+      tags:
+        - Tracking - Skill Progress
+      summary: List skill progress logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of skill progress logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Skill Progress
+      summary: Log a skill progress entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - skillId
+                - progress
+                - date
+              properties:
+                skillId:
+                  type: string
+                skillTopicId:
+                  type: string
+                progress:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/skills/{id}:
+    get:
+      tags:
+        - Tracking - Skill Progress
+      summary: Get a skill progress log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the skill progress log
+      responses:
+        '200':
+          description: Skill progress log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Skill Progress
+      summary: Update a skill progress log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the skill progress log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                skillId:
+                  type: string
+                skillTopicId:
+                  type: string
+                progress:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Skill Progress
+      summary: Delete a skill progress log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the skill progress log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/fitness:
+    get:
+      tags:
+        - Tracking - Fitness
+      summary: List fitness logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of fitness logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Fitness
+      summary: Log a fitness activity
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fitnessActivityId
+                - quantity
+                - date
+              properties:
+                fitnessActivityId:
+                  type: string
+                fitnessIntensityId:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+                quantityUnit:
+                  type: string
+                  maxLength: 20
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/fitness/{id}:
+    get:
+      tags:
+        - Tracking - Fitness
+      summary: Get a fitness log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitness log
+      responses:
+        '200':
+          description: Fitness log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Fitness
+      summary: Update a fitness log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitness log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                fitnessActivityId:
+                  type: string
+                fitnessIntensityId:
+                  type: string
+                quantity:
+                  type: integer
+                  minimum: 1
+                quantityUnit:
+                  type: string
+                  maxLength: 20
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Fitness
+      summary: Delete a fitness log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitness log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/nutrition:
+    get:
+      tags:
+        - Tracking - Nutrition
+      summary: List nutrition logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of nutrition logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Nutrition
+      summary: Log a nutrition entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nutritionFoodId
+                - date
+              properties:
+                nutritionFoodId:
+                  type: string
+                quantity:
+                  type: string
+                  maxLength: 50
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/nutrition/{id}:
+    get:
+      tags:
+        - Tracking - Nutrition
+      summary: Get a nutrition log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the nutrition log
+      responses:
+        '200':
+          description: Nutrition log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Nutrition
+      summary: Update a nutrition log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the nutrition log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                nutritionFoodId:
+                  type: string
+                quantity:
+                  type: string
+                  maxLength: 50
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Nutrition
+      summary: Delete a nutrition log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the nutrition log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/sleep:
+    get:
+      tags:
+        - Tracking - Sleep
+      summary: List sleep logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of sleep logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Sleep
+      summary: Log a sleep entry
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bedtime
+                - wakeupTime
+                - date
+              properties:
+                bedtime:
+                  type: string
+                  format: date-time
+                wakeupTime:
+                  type: string
+                  format: date-time
+                sleepQuality:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/sleep/{id}:
+    get:
+      tags:
+        - Tracking - Sleep
+      summary: Get a sleep log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the sleep log
+      responses:
+        '200':
+          description: Sleep log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Sleep
+      summary: Update a sleep log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the sleep log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                bedtime:
+                  type: string
+                  format: date-time
+                wakeupTime:
+                  type: string
+                  format: date-time
+                sleepQuality:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Sleep
+      summary: Delete a sleep log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the sleep log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/fitrah-practices:
+    get:
+      tags:
+        - Tracking - Fitrah Practices
+      summary: List fitrah practice logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of fitrah practice logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Fitrah Practices
+      summary: Log fitrah practices
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - practices
+                - date
+              properties:
+                practices:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/fitrah-practices/{id}:
+    get:
+      tags:
+        - Tracking - Fitrah Practices
+      summary: Get a fitrah practice log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitrah practice log
+      responses:
+        '200':
+          description: Fitrah practice log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Fitrah Practices
+      summary: Update a fitrah practice log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitrah practice log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                practices:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Fitrah Practices
+      summary: Delete a fitrah practice log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the fitrah practice log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/tasks:
+    get:
+      tags:
+        - Tracking - Tasks
+      summary: List tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of tasks
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Tasks
+      summary: Create a task
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - date
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                intentionId:
+                  type: string
+                taskPriorityId:
+                  type: string
+                taskStatusId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/tasks/{id}:
+    get:
+      tags:
+        - Tracking - Tasks
+      summary: Get a task by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the task
+      responses:
+        '200':
+          description: Task details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Tasks
+      summary: Update a task
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                intentionId:
+                  type: string
+                taskPriorityId:
+                  type: string
+                taskStatusId:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Tasks
+      summary: Delete a task
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the task
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/tracking/intentions:
+    get:
+      tags:
+        - Tracking - Intentions
+      summary: List intention logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of intention logs
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Tracking - Intentions
+      summary: Log an intention
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - intentionId
+                - date
+              properties:
+                intentionId:
+                  type: string
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation error
+  /v1/tracking/intentions/{id}:
+    get:
+      tags:
+        - Tracking - Intentions
+      summary: Get an intention log by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the intention log
+      responses:
+        '200':
+          description: Intention log details
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+    put:
+      tags:
+        - Tracking - Intentions
+      summary: Update an intention log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the intention log
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: All fields optional
+              properties:
+                intentionId:
+                  type: string
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                date:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Updated
+        '400':
+          description: Invalid FK IDs
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+        '422':
+          description: Validation error
+    delete:
+      tags:
+        - Tracking - Intentions
+      summary: Delete an intention log
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: CUID of the intention log
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /v1/users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get current user profile
+      description: Retrieve the authenticated user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update the authenticated user's profile information
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  pattern: ^[a-zA-Z\s-]+$
+                  example: John Doe
+                age:
+                  type: integer
+                  minimum: 6
+                  maximum: 120
+                  example: 25
+                city:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: New York
+                country:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: United States
+                latitude:
+                  type: number
+                  minimum: -90
+                  maximum: 90
+                  example: 40.7128
+                  description: User's latitude for prayer times
+                longitude:
+                  type: number
+                  minimum: -180
+                  maximum: 180
+                  example: -74.006
+                  description: User's longitude for prayer times
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: Profile updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/users/onboarding:
+    post:
+      tags:
+        - Users
+      summary: Complete user onboarding
+      description: Submit required profile information for first-time onboarding
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - displayName
+                - age
+                - city
+                - country
+              properties:
+                displayName:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  pattern: ^[a-zA-Z\s-]+$
+                  example: John Doe
+                age:
+                  type: integer
+                  minimum: 6
+                  maximum: 120
+                  example: 25
+                city:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: New York
+                country:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: United States
+                latitude:
+                  type: number
+                  minimum: -90
+                  maximum: 90
+                  example: 40.7128
+                  description: User's latitude (optional, for prayer times)
+                longitude:
+                  type: number
+                  minimum: -180
+                  maximum: 180
+                  example: -74.006
+                  description: User's longitude (optional, for prayer times)
+      responses:
+        '200':
+          description: Onboarding completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: Onboarding completed successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User has already completed onboarding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/users/onboarding/status:
+    get:
+      tags:
+        - Users
+      summary: Get onboarding status
+      description: Check if the user has completed onboarding
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Onboarding status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      isOnboarded:
+                        type: boolean
+                        example: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/users/email/request:
+    post:
+      tags:
+        - Users
+      summary: Request email change
+      description: Initiate email change by sending OTP to new email address
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newEmail
+              properties:
+                newEmail:
+                  type: string
+                  format: email
+                  example: newemail@example.com
+      responses:
+        '200':
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Verification code sent to new email address.
+                  message:
+                    type: string
+                    example: Verification code sent
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/users/email/confirm:
+    post:
+      tags:
+        - Users
+      summary: Confirm email change
+      description: Verify OTP and update user email address
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - otp
+              properties:
+                otp:
+                  type: string
+                  pattern: ^\d{6}$
+                  example: '123456'
+      responses:
+        '200':
+          description: Email updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Email updated successfully.
+                  message:
+                    type: string
+                    example: Email updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

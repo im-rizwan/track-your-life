@@ -1,4 +1,4 @@
-// Prisma Schema for Track-Yr-Life Backend
+// Prisma Schema for Muhasabah Backend
 
 generator client {
   provider = "prisma-client-js"
@@ -11,52 +11,958 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// USER MANAGEMENT
-// ============================================
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String   // Will be hashed with bcrypt
-  firstName String?  @map("first_name")
-  lastName  String?  @map("last_name")
-  
-  // Account status
-  isActive       Boolean  @default(true) @map("is_active")
-  emailVerified  Boolean  @default(false) @map("email_verified")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  
-  // Security
-  lastLoginAt    DateTime? @map("last_login_at")
-  passwordChangedAt DateTime? @map("password_changed_at")
-  
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  
-  // Relations
-  refreshTokens RefreshToken[]
-  
-  @@map("users")
+  id              String  @id @default(cuid())
+  email           String  @unique
+  password        String // bcrypt hashed
+  isEmailVerified Boolean @default(false)
+
+  // Profile Information
+  displayName String?
+  age         Int?
+  city        String?
+  country     String?
+  isOnboarded Boolean @default(false)
+
+  // Location fields (for prayer times calculation)
+  latitude  Float? // -90 to 90
+  longitude Float? // -180 to 180
+  timezone  String? // IANA format: "America/New_York", "Asia/Dubai"
+
+  // Session Management
+  lastLoginAt DateTime?
+
+  // Account Status
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations - Authentication
+  otpTokens           OtpToken[]
+  failedLoginAttempts FailedLoginAttempt[]
+  refreshTokens       RefreshToken[]
+
+  // Relations - Configuration
+  prayerTimesConfig PrayerTimesConfig?
+  prayerTimes       PrayerTime[]
+
+  // Relations - Custom Options (User-Owned Entities)
+  prayerLocations      PrayerLocation[]
+  otherPrayerTypes     OtherPrayerType[]
+  dhikrTypes           DhikrType[]
+  fastingTypes         FastingType[]
+  charityTypes         CharityType[]
+  islamicStudySubjects IslamicStudySubject[]
+  studyModes           StudyMode[]
+  fitnessActivities    FitnessActivity[]
+  nutritionFoods       NutritionFood[]
+  fitrahPractices      FitrahPractice[]
+  skills               Skill[]
+  intentions           Intention[]
+
+  // Relations - Tracking Logs
+  dailyPrayerLogs    DailyPrayerLog[]
+  otherPrayerLogs    OtherPrayerLog[]
+  quranLogs          QuranLog[]
+  dhikrLogs          DhikrLog[]
+  fastingLogs        FastingLog[]
+  charityLogs        CharityLog[]
+  islamicStudyLogs   IslamicStudyLog[]
+  skillProgressLogs  SkillProgressLog[]
+  fitnessLogs        FitnessLog[]
+  nutritionLogs      NutritionLog[]
+  sleepLogs          SleepLog[]
+  fitrahPracticeLogs FitrahPracticeLog[]
+  tasks              Task[]
+  intentionLogs      IntentionLog[]
+
+  // Relations - Audit
+  auditLogs AuditLog[]
+
   @@index([email])
+  @@index([isActive])
 }
 
-// ============================================
-// AUTHENTICATION
-// ============================================
+// ============================================================================
+// OTP & SECURITY
+// ============================================================================
 
+model OtpToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String // 6-digit OTP
+  purpose   OtpPurpose // Only truly internal system enum
+  expiresAt DateTime
+  isUsed    Boolean    @default(false)
+  usedAt    DateTime?
+  metadata  Json?      // Additional data (e.g., new email for EMAIL_CHANGE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, purpose, isUsed])
+  @@index([expiresAt])
+}
+
+// Keep this enum - internal system use only, never user-facing
+enum OtpPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  ACCOUNT_DELETION
+  EMAIL_CHANGE
+}
+
+model FailedLoginAttempt {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  attemptedAt DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, attemptedAt])
+}
+
+// Session Management (for refresh tokens)
 model RefreshToken {
   id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   token     String   @unique
-  userId    String   @map("user_id")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("refresh_tokens")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([expiresAt])
+}
+
+// ============================================================================
+// PRAYER TIMES CONFIGURATION
+// ============================================================================
+
+model PrayerTimesConfig {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Calculation mode: AUTOMATIC (API-based) or MANUAL
+  calculationMode CalculationMode @default(AUTOMATIC)
+
+  // API calculation method (only used in AUTOMATIC mode)
+  apiMethod ApiCalculationMethod? @default(MWL)
+
+  // Manual times (only used in MANUAL mode) - stored as "HH:MM" 24-hour format
+  manualFajr    String? // e.g., "05:30"
+  manualZuhr    String? // e.g., "12:15"
+  manualAsr     String? // e.g., "15:45"
+  manualMaghrib String? // e.g., "18:30"
+  manualIsha    String? // e.g., "20:00"
+
+  // Adjustments (only used in AUTOMATIC mode) - minutes offset: -15 to +15
+  fajrAdjustment    Int @default(0)
+  zuhrAdjustment    Int @default(0)
+  asrAdjustment     Int @default(0)
+  maghribAdjustment Int @default(0)
+  ishaAdjustment    Int @default(0)
+
+  // Metadata
+  lastFetchedAt DateTime? // Last time API was called (for cache invalidation)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+enum CalculationMode {
+  AUTOMATIC
+  MANUAL
+}
+
+enum ApiCalculationMethod {
+  MWL     // Muslim World League (Default)
+  ISNA    // Islamic Society of North America
+  EGYPT   // Egyptian General Authority of Survey
+  MAKKAH  // Umm Al-Qura University, Makkah
+  KARACHI // University of Islamic Sciences, Karachi
+  TEHRAN  // Institute of Geophysics, University of Tehran
+}
+
+// Cached prayer times (to reduce API calls and provide offline fallback)
+model PrayerTime {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date // Date for these prayer times (YYYY-MM-DD)
+
+  // Prayer times stored as "HH:MM" in user's local timezone
+  fajr    String
+  zuhr    String
+  asr     String
+  maghrib String
+  isha    String
+
+  // Source of these prayer times
+  source PrayerTimeSource
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+enum PrayerTimeSource {
+  API
+  MANUAL
+}
+
+// ============================================================================
+// SYSTEM REFERENCE TABLES (Replaces Enums for Flexibility)
+// ============================================================================
+
+// Prayer Status Options (PRAYED_ON_TIME, PRAYED_LATE, QADA, MISSED)
+model PrayerStatus {
+  id        String  @id @default(cuid())
+  name      String  @unique // "PRAYED_ON_TIME", "PRAYED_LATE", "QADA", "MISSED"
+  label     String // "Prayed on Time", "Prayed Late", "Qada", "Missed"
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dailyPrayerLogs DailyPrayerLog[]
+
+  @@index([isActive, sortOrder])
+}
+
+// Quran Activity Types (RECITATION, MEMORIZATION, REVISION, etc.)
+model QuranActivityType {
+  id        String  @id @default(cuid())
+  name      String  @unique // "RECITATION", "MEMORIZATION", etc.
+  label     String // "Recitation", "Memorization", etc.
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quranLogs QuranLog[]
+
+  @@index([isActive, sortOrder])
+}
+
+// Task Priority Levels
+model TaskPriority {
+  id        String  @id @default(cuid())
+  name      String  @unique // "HIGH", "MEDIUM", "LOW"
+  label     String // "High", "Medium", "Low"
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([isActive, sortOrder])
+}
+
+// Task Status Options
+model TaskStatus {
+  id        String  @id @default(cuid())
+  name      String  @unique // "NOT_STARTED", "IN_PROGRESS", "COMPLETED"
+  label     String // "Not Started", "In Progress", "Completed"
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([isActive, sortOrder])
+}
+
+// Fitness Intensity Levels
+model FitnessIntensity {
+  id        String  @id @default(cuid())
+  name      String  @unique // "LOW", "MEDIUM", "HIGH"
+  label     String // "Low", "Medium", "High"
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fitnessLogs FitnessLog[]
+
+  @@index([isActive, sortOrder])
+}
+
+// ============================================================================
+// USER CUSTOMIZATION ENTITIES
+// ============================================================================
+
+// Prayer Locations (Masjid, Home, Work + User Custom)
+model PrayerLocation {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false) // System defaults (userId = null)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dailyPrayerLogs DailyPrayerLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Other Prayer Types (Tahajjud, Duha, Witr, Eid + User Custom)
+model OtherPrayerType {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name               String
+  isDefault          Boolean @default(false)
+  requiresRakahCount Boolean @default(false)
+  isActive           Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  otherPrayerLogs OtherPrayerLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Dhikr Types
+model DhikrType {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dhikrLogs DhikrLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Fasting Types
+model FastingType {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fastingLogs FastingLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Charity Types
+model CharityType {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  charityLogs CharityLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Islamic Study Subjects
+model IslamicStudySubject {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  islamicStudyLogs IslamicStudyLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Study Modes
+model StudyMode {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  islamicStudyLogs IslamicStudyLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Fitness Activities
+model FitnessActivity {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fitnessLogs FitnessLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Nutrition Foods
+model NutritionFood {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nutritionLogs NutritionLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Fitrah Practices
+model FitrahPractice {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fitrahPracticeLogs FitrahPracticeOnLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+  @@index([isDefault])
+}
+
+// Skills (Complex - has topics)
+model Skill {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topics       SkillTopic[]
+  progressLogs SkillProgressLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+}
+
+model SkillTopic {
+  id      String @id @default(cuid())
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  name      String
+  isPending Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skillProgressLogs SkillProgressLog[]
+
+  @@unique([skillId, name])
+  @@index([skillId, isPending])
+}
+
+// Intentions (Complex - links to tasks)
+model Intention {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks         Task[]
+  intentionLogs IntentionLog[]
+
+  @@unique([userId, name])
+  @@index([userId, isActive])
+}
+
+// ============================================================================
+// IBADAH TRACKING: PRAYERS
+// ============================================================================
+
+model DailyPrayerLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Keep as enum - These are immutable Islamic prayer names
+  prayerName DailyPrayerName
+
+  // Foreign key to PrayerStatus table (not enum!)
+  prayerStatusId String
+  prayerStatus   PrayerStatus @relation(fields: [prayerStatusId], references: [id], onDelete: Restrict)
+
+  // Foreign key to PrayerLocation
+  prayerLocationId String?
+  prayerLocation   PrayerLocation? @relation(fields: [prayerLocationId], references: [id], onDelete: SetNull)
+
+  khushuRating Int? // 1-5 scale
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, prayerName, date])
+  @@index([userId, prayerStatusId, date])
+  @@index([prayerLocationId])
+  @@index([prayerStatusId])
+}
+
+// Keep this enum - Islamic prayer times are immutable (1400+ years)
+enum DailyPrayerName {
+  FAJR
+  ZUHR
+  ASR
+  MAGHRIB
+  ISHA
+  JUMMAH
+}
+
+model OtherPrayerLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to OtherPrayerType
+  otherPrayerTypeId String
+  otherPrayerType   OtherPrayerType @relation(fields: [otherPrayerTypeId], references: [id], onDelete: Restrict)
+
+  rakahs Int? // Number of rakahs (conditional based on prayer type)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([otherPrayerTypeId, date])
+}
+
+// ============================================================================
+// IBADAH TRACKING: QURAN
+// ============================================================================
+
+model QuranLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  surahName   String
+  surahNumber Int // 1-114
+
+  // Foreign key to QuranActivityType table (not enum!)
+  quranActivityTypeId String
+  quranActivityType   QuranActivityType @relation(fields: [quranActivityTypeId], references: [id], onDelete: Restrict)
+
+  versesCount Int
+  juzzNumber  Int? // 1-30 (optional)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, quranActivityTypeId, date])
+  @@index([userId, surahNumber, date])
+  @@index([quranActivityTypeId])
+}
+
+// ============================================================================
+// IBADAH TRACKING: DHIKR, FASTING, CHARITY
+// ============================================================================
+
+model DhikrLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to DhikrType
+  dhikrTypeId String
+  dhikrType   DhikrType @relation(fields: [dhikrTypeId], references: [id], onDelete: Restrict)
+
+  count Int // Count or duration (flexible interpretation)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([dhikrTypeId, date])
+}
+
+model FastingLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to FastingType
+  fastingTypeId String
+  fastingType   FastingType @relation(fields: [fastingTypeId], references: [id], onDelete: Restrict)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([fastingTypeId, date])
+}
+
+model CharityLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to CharityType
+  charityTypeId String
+  charityType   CharityType @relation(fields: [charityTypeId], references: [id], onDelete: Restrict)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([charityTypeId, date])
+}
+
+// ============================================================================
+// KNOWLEDGE & LEARNING TRACKING
+// ============================================================================
+
+model IslamicStudyLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign keys to customizable subjects and modes
+  subjectId String
+  subject   IslamicStudySubject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  studyModeId String
+  studyMode   StudyMode @relation(fields: [studyModeId], references: [id], onDelete: Restrict)
+
+  durationMins Int // Duration in minutes
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([subjectId, date])
+  @@index([studyModeId, date])
+}
+
+model SkillProgressLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  // FIXED: Foreign key to SkillTopic (not string!)
+  skillTopicId String?
+  skillTopic   SkillTopic? @relation(fields: [skillTopicId], references: [id], onDelete: SetNull)
+
+  progress Int // 0-100 percentage
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([skillId, date])
+  @@index([skillTopicId])
+}
+
+// ============================================================================
+// HEALTH & LIFESTYLE TRACKING
+// ============================================================================
+
+model FitnessLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to FitnessActivity
+  fitnessActivityId String
+  fitnessActivity   FitnessActivity @relation(fields: [fitnessActivityId], references: [id], onDelete: Restrict)
+
+  // Foreign key to FitnessIntensity (not enum!)
+  fitnessIntensityId String?
+  fitnessIntensity   FitnessIntensity? @relation(fields: [fitnessIntensityId], references: [id], onDelete: SetNull)
+
+  quantity     Int // Duration in minutes or count
+  quantityUnit String? // "minutes", "reps", "km", etc.
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([fitnessActivityId, date])
+  @@index([fitnessIntensityId])
+}
+
+model NutritionLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Foreign key to NutritionFood
+  nutritionFoodId String
+  nutritionFood   NutritionFood @relation(fields: [nutritionFoodId], references: [id], onDelete: Restrict)
+
+  quantity String? // "1 cup", "100g", etc. (freeform)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([nutritionFoodId, date])
+}
+
+model SleepLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bedtime      DateTime // Full timestamp
+  wakeupTime   DateTime // Full timestamp
+  sleepQuality Int? // 1-5 rating
+
+  date  DateTime // Date this sleep session belongs to
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model FitrahPracticeLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Many-to-many with FitrahPractice via join table
+  practices FitrahPracticeOnLog[]
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+// Join table for many-to-many relationship
+model FitrahPracticeOnLog {
+  id String @id @default(cuid())
+
+  logId String
+  log   FitrahPracticeLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  practiceId String
+  practice   FitrahPractice @relation(fields: [practiceId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([logId, practiceId])
+  @@index([logId])
+  @@index([practiceId])
+}
+
+// ============================================================================
+// TIME & PRODUCTIVITY TRACKING
+// ============================================================================
+
+model Task {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  intentionId String?
+  intention   Intention? @relation(fields: [intentionId], references: [id], onDelete: SetNull)
+
+  title String
+
+  // Foreign keys to TaskPriority and TaskStatus tables (not enums!)
+  taskPriorityId String?
+  taskPriority   TaskPriority? @relation(fields: [taskPriorityId], references: [id], onDelete: SetNull)
+
+  taskStatusId String?
+  taskStatus   TaskStatus? @relation(fields: [taskStatusId], references: [id], onDelete: Restrict)
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, taskStatusId, date])
+  @@index([intentionId])
+  @@index([taskPriorityId])
+  @@index([taskStatusId])
+}
+
+model IntentionLog {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  intentionId String
+  intention   Intention @relation(fields: [intentionId], references: [id], onDelete: Cascade)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  date  DateTime
+  notes String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([intentionId, date])
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action   String // "USER_REGISTERED", "PRAYER_LOGGED", etc.
+  entity   String? // "User", "DailyPrayerLog", etc.
+  entityId String? // ID of affected entity
+  metadata Json? // Additional context (IP, user agent, changes, etc.)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([entity, entityId])
 }

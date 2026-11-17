@@ -1,8 +1,19 @@
 import { prisma } from '../../core/database/prisma.client';
 import { CreateUserData, UpdateUserData, PublicUser } from './types/user.types';
-import { User } from '@prisma/client';
+import { User, OtpToken, OtpPurpose, Prisma } from '@prisma/client';
 
 export class UsersRepository {
+  // Transaction support for atomic operations
+  async transaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+    options?: {
+      timeout?: number;
+      maxWait?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    }
+  ): Promise<T> {
+    return prisma.$transaction(fn, options);
+  }
   async create(data: CreateUserData): Promise<User> {
     return prisma.user.create({
       data,
@@ -48,7 +59,74 @@ export class UsersRepository {
 
   // Remove password from user object
   excludePassword(user: User): PublicUser {
-    const { password, ...userWithoutPassword } = user;
+    const { password: _password, ...userWithoutPassword } = user;
     return userWithoutPassword;
+  }
+
+  // OTP Token operations for email change
+  async createOtpToken(data: {
+    userId: string;
+    token: string;
+    purpose: OtpPurpose;
+    expiresAt: Date;
+    metadata?: Prisma.InputJsonValue;
+  }): Promise<OtpToken> {
+    return prisma.otpToken.create({
+      data,
+    });
+  }
+
+  async findOtpToken(userId: string, token: string, purpose: OtpPurpose): Promise<OtpToken | null> {
+    return prisma.otpToken.findFirst({
+      where: {
+        userId,
+        token,
+        purpose,
+        isUsed: false,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+  }
+
+  async findUnusedOtpTokens(userId: string, purpose: OtpPurpose): Promise<OtpToken[]> {
+    return prisma.otpToken.findMany({
+      where: {
+        userId,
+        purpose,
+        isUsed: false,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async markOtpUsed(otpId: string): Promise<OtpToken> {
+    return prisma.otpToken.update({
+      where: { id: otpId },
+      data: {
+        isUsed: true,
+        usedAt: new Date(),
+      },
+    });
+  }
+
+  async invalidateUnusedOtps(userId: string, purpose: OtpPurpose): Promise<void> {
+    await prisma.otpToken.updateMany({
+      where: {
+        userId,
+        purpose,
+        isUsed: false,
+      },
+      data: {
+        isUsed: true,
+        usedAt: new Date(),
+      },
+    });
   }
 }

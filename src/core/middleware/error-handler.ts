@@ -11,6 +11,7 @@ export const errorHandler = (
 ): void => {
   if (err instanceof AppError) {
     logger.warn('Operational error', {
+      requestId: req.requestId,
       statusCode: err.statusCode,
       message: err.message,
       code: err.code,
@@ -30,18 +31,23 @@ export const errorHandler = (
 
   // Unexpected errors
   logger.error('Unexpected error', {
+    requestId: req.requestId,
     error: err.message,
     stack: err.stack,
     path: req.path,
     method: req.method,
   });
 
+  // SECURITY: Never send stack traces to the client
+  // Stack traces expose internal implementation details and file paths
+  // They are logged server-side for debugging but never sent to users
   res.status(500).json({
     success: false,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: config.isProduction ? 'Internal server error' : err.message,
-      ...(config.isDevelopment && { stack: err.stack }),
+      message: config.isProduction
+        ? 'An unexpected error occurred. Please try again later.'
+        : err.message,
     },
   });
 };

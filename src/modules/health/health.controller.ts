@@ -20,7 +20,7 @@ export class HealthController {
         database: 'connected',
         timestamp: new Date().toISOString(),
       });
-    } catch (error) {
+    } catch {
       res.status(503).json({
         status: 'error',
         database: 'disconnected',

@@ -1,5 +1,5 @@
 {
-  "name": "track-yr-life",
+  "name": "Muhasabah",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -18,19 +18,25 @@
     "docker:prod": "docker-compose -f docker-compose.prod.yml up -d",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "npx tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
+    "geo-tz": "^8.1.5",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "swagger-jsdoc": "^6.2.8",

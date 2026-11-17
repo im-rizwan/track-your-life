@@ -1,7 +1,5 @@
 # Backend Architecture \& Coding Manual
 
-## Track-Yr-Life Production-Grade Backend
-
 **Version:** 1.0.0 | **Architecture:** Feature-Based Modular Monolith | **Stack:** Node.js 20 + Express + TypeScript + Prisma + PostgreSQL
 
 ***
@@ -239,7 +237,7 @@ console.log('User created: ' + email);
 ## 6.4 Database (Prisma)
 
 - **All queries through repositories**
-- **Connection pooling:** Use Neon's pooled connection (`pgbouncer=true`)
+- **Connection pooling:** Use Neon's pooled connection 
 - **Keep-alive:** 4-minute ping for serverless databases
 - **Migrations:** `npx prisma migrate dev` (local), `npx prisma migrate deploy` (production)
 

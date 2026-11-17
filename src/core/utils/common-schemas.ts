@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Common reusable schemas
-export const emailSchema = z.string().email('Invalid email address').trim().toLowerCase();
+export const emailSchema = z.string().trim().toLowerCase().email('Invalid email address');
 
 export const passwordSchema = z
   .string()
@@ -28,3 +28,29 @@ export const createSanitizedString = (minLength = 1, maxLength = 255) => {
     .max(maxLength, `Must be at most ${maxLength} characters`)
     .transform((val) => val.replace(/\s+/g, ' ')); // Replace multiple spaces with single space
 };
+
+// Date string for tracking logs: YYYY-MM-DD, must be ≤ today and ≥ 1 year ago
+export const trackingDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine((date) => {
+    const today = new Date().toISOString().split('T')[0];
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+    return date <= today && date >= oneYearAgoStr;
+  }, 'Date must be between 1 year ago and today');
+
+// Pagination + date filter for tracking list endpoints
+export const trackingPaginationSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'startDate must be YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'endDate must be YYYY-MM-DD')
+    .optional(),
+});

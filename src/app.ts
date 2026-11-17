@@ -9,10 +9,15 @@ import { logger } from './core/utils/logger';
 import { swaggerSpec } from './core/config/swagger.config';
 import apiRouter from './api/router';
 import { requestDuration } from './core/middleware/request-duration';
+import { requestId } from './core/middleware/request-id';
 
 export const createApp = (): Application => {
   const app = express();
   app.set('trust proxy', 1);
+
+  // Request ID for tracing
+  app.use(requestId);
+
   // Enhanced security headers
   app.use(
     helmet({
@@ -65,7 +70,7 @@ export const createApp = (): Application => {
   // Stricter rate limiting for auth endpoints
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 requests per 15 minutes
+    max: config.env === 'test' ? 10000 : 5, // relaxed in test env
     message: 'Too many authentication attempts, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
@@ -73,9 +78,35 @@ export const createApp = (): Application => {
   app.use('/api/v1/auth/login', authLimiter);
   app.use('/api/v1/auth/register', authLimiter);
 
-  // Body parsing with size limits
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // OTP brute-force protection (10 attempts per 15 minutes)
+  const otpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: config.env === 'test' ? 10000 : 10,
+    message: 'Too many OTP verification attempts, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/v1/auth/verify-email', otpLimiter);
+  app.use('/api/v1/auth/reset-password', otpLimiter);
+  app.use('/api/v1/auth/delete-account/confirm', otpLimiter);
+  app.use('/api/v1/users/email/confirm', otpLimiter);
+
+  // Email sending rate limit (3 per 15 minutes per IP)
+  const emailLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: config.env === 'test' ? 10000 : 3,
+    message: 'Too many email requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/api/v1/auth/resend-verification', emailLimiter);
+  app.use('/api/v1/auth/forgot-password', emailLimiter);
+  app.use('/api/v1/auth/resend-reset-otp', emailLimiter);
+  app.use('/api/v1/users/email/request', emailLimiter);
+
+  // Body parsing with configurable size limits
+  app.use(express.json({ limit: config.bodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: config.bodyLimit }));
 
   // Request logging (skip health checks)
   app.use((req, _res, next) => {
@@ -84,6 +115,7 @@ export const createApp = (): Application => {
     }
 
     logger.info('Incoming request', {
+      requestId: req.requestId,
       method: req.method,
       path: req.path,
       ip: req.ip,
@@ -104,7 +136,7 @@ export const createApp = (): Application => {
       swaggerUi.serve,
       swaggerUi.setup(swaggerSpec, {
         customCss: '.swagger-ui .topbar { display: none }',
-        customSiteTitle: 'Track-Yr-Life API Docs',
+        customSiteTitle: 'Muhasabah API Docs',
       })
     );
 
