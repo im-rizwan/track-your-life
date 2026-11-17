@@ -74,5 +74,5 @@ EXPOSE 3000
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start application
-CMD ["node", "dist/server.js"]
+# Apply pending migrations, then start application
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
