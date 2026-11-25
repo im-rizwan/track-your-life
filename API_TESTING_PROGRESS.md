@@ -157,8 +157,18 @@
    client error. Fixed globally in `error-handler.ts` so every endpoint with a `@unique` field is
    protected, not just register. Retested: now exactly 1×`201`, 9×`409`, zero `500`s.
 
-**All 40 planned test cases + the concurrency check pass.** ✅ **POST /api/v1/auth/register is
-declared PROD READY.**
+**All 40 planned test cases + the concurrency check pass, confirmed on live production** (not
+just local) after resolving a transient deploy failure — see infra note below.
+✅ **POST /api/v1/auth/register is declared PROD READY.**
+
+**Deploy infra note:** mid-campaign, a deploy (`7b79c46`) failed at the `prisma migrate deploy`
+step with `P1002` (timed out acquiring the Postgres advisory lock against Neon), and Render
+silently fell back to serving the last successful build — meaning the P2002 race-condition fix
+was NOT actually live for a period even though the push succeeded. Root cause: likely Neon
+serverless autosuspend/cold-start exceeding Prisma's 10s lock-acquisition window. Resolved by
+retriggering a deploy (`cce15e6`) after keeping the DB warm via `/api/v1/health/db`. Lesson:
+**a successful `git push` does not guarantee the fix is live** — always do a final behavioral
+confirmation against the actual production response, not just deploy logs.
 
 **Infra note:** `/auth/register` and `/auth/login` share a limiter of 5 req/15min per IP in
 production (counts failures too). Temporarily raised to 1000 (commit `34a58a7`) to allow this
