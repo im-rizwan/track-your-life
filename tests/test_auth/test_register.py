@@ -1,6 +1,7 @@
 """Tests for POST /api/v1/auth/register."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.auth_helpers import unique_email
 from utils.assertions import (
@@ -134,3 +135,51 @@ class TestRegisterInputValidation:
         """Empty string email returns 422."""
         resp = api_client.register("", "Test@12345")
         assert_validation_error(resp)
+
+    def test_register_email_too_long_returns_422(self, api_client):
+        """Email exceeding RFC 5321's 254-char limit is rejected, not accepted and
+        left to fail downstream at the email-send step. Regression test for a bug
+        found during manual production testing: emailSchema previously had no
+        max-length bound, so an oversized email passed validation, was written to
+        the database, and only failed later with an opaque EmailJS 503."""
+        local_part = "a" * 300
+        resp = api_client.register(f"{local_part}@example.com", "Test@12345")
+        assert_validation_error(resp)
+
+    def test_register_malformed_json_returns_400(self, api_client):
+        """A request body that isn't valid JSON returns 400, not 500.
+        Regression test: express.json()'s SyntaxError used to fall through to the
+        generic unexpected-error handler and return a raw 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}/api/v1/auth/register",
+            data='{"email":"bad json',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body["success"] is False
+        assert body["error"]["code"] == "INVALID_JSON"
+
+
+class TestRegisterConcurrency:
+    """Race-condition handling for duplicate concurrent registrations."""
+
+    def test_concurrent_duplicate_registrations_never_500(self, api_client):
+        """10 parallel registrations with the same email must yield exactly one
+        201 and the rest 409 Conflict — never a 500. Regression test for a bug
+        found during manual production testing: the existence-check-then-insert
+        in AuthService.register() isn't atomic, so concurrent requests race past
+        the check and collide on the DB's unique constraint. The loser's raw
+        Prisma P2002 error wasn't mapped to a client error and leaked as a 500."""
+        email = unique_email()
+
+        def attempt():
+            return api_client.register(email, "Test@12345")
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(201) == 1, f"Expected exactly one 201, got: {status_codes}"
+        assert status_codes.count(409) == 9, f"Expected nine 409s, got: {status_codes}"
+        assert 500 not in status_codes, f"Got a 500 in concurrent registration: {status_codes}"

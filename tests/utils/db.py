@@ -23,6 +23,20 @@ def get_latest_otp(db_conn, user_email: str, purpose: str) -> str | None:
     return row[0] if row else None
 
 
+def expire_otp(db_conn, user_email: str, purpose: str) -> int:
+    """Backdate all unused OTPs for a user+purpose so they're expired. Returns row count."""
+    cursor = db_conn.cursor()
+    cursor.execute("""
+        UPDATE "OtpToken" ot
+        SET "expiresAt" = NOW() - INTERVAL '1 minute'
+        WHERE ot."userId" = (SELECT id FROM "User" WHERE email = %s)
+          AND ot.purpose = %s AND ot."isUsed" = false
+    """, (user_email, purpose))
+    count = cursor.rowcount
+    cursor.close()
+    return count
+
+
 def get_user_id(db_conn, email: str) -> str | None:
     """Get user ID by email."""
     cursor = db_conn.cursor()
