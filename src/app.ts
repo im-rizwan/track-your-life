@@ -68,9 +68,11 @@ export const createApp = (): Application => {
   app.use('/api/', limiter);
 
   // Stricter rate limiting for auth endpoints
+  // TEMP: raised from 5 to 1000 for production API edge-case testing campaign.
+  // MUST be reverted to 5 before considering auth endpoints prod-ready. See API_TESTING_PROGRESS.md.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: config.env === 'test' ? 10000 : 5, // relaxed in test env
+    max: config.env === 'test' ? 10000 : 1000, // TEMP (normally 5)
     message: 'Too many authentication attempts, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
