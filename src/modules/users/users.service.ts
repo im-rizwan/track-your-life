@@ -331,8 +331,12 @@ export class UsersService {
       throw new ConflictError('Email already in use');
     }
 
-    // Mark OTP as used
-    await this.repository.markOtpUsed(otpMatch.id);
+    // Atomically claim the OTP — if a concurrent request already won this
+    // race, treat it the same as an invalid OTP rather than proceeding.
+    const claimed = await this.repository.claimOtp(otpMatch.id);
+    if (!claimed) {
+      throw new ValidationError('Invalid or expired OTP');
+    }
 
     // Update user email
     await this.repository.update(userId, {

@@ -191,8 +191,12 @@ export class AuthService {
       throw new ValidationError('Invalid or expired OTP');
     }
 
-    // Mark OTP as used
-    await this.repository.markOtpUsed(otpMatch.id);
+    // Atomically claim the OTP — if a concurrent request already won this
+    // race, treat it the same as an invalid OTP rather than proceeding.
+    const claimed = await this.repository.claimOtp(otpMatch.id);
+    if (!claimed) {
+      throw new ValidationError('Invalid or expired OTP');
+    }
 
     // Update user email verification status
     const updatedUser = await this.repository.updateUser(user.id, {
@@ -404,8 +408,12 @@ export class AuthService {
       throw new ValidationError('Invalid or expired OTP');
     }
 
-    // Mark OTP as used
-    await this.repository.markOtpUsed(otpMatch.id);
+    // Atomically claim the OTP — if a concurrent request already won this
+    // race, treat it the same as an invalid OTP rather than proceeding.
+    const claimed = await this.repository.claimOtp(otpMatch.id);
+    if (!claimed) {
+      throw new ValidationError('Invalid or expired OTP');
+    }
 
     // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 12);
@@ -504,8 +512,12 @@ export class AuthService {
       throw new ValidationError('Invalid or expired OTP');
     }
 
-    // Mark OTP as used
-    await this.repository.markOtpUsed(otpMatch.id);
+    // Atomically claim the OTP — if a concurrent request already won this
+    // race, treat it the same as an invalid OTP rather than proceeding.
+    const claimed = await this.repository.claimOtp(otpMatch.id);
+    if (!claimed) {
+      throw new ValidationError('Invalid or expired OTP');
+    }
 
     // Delete user (cascade will handle all related data)
     await this.repository.deleteUser(userId);

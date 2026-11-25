@@ -116,6 +116,18 @@ export class UsersRepository {
     });
   }
 
+  // Atomically claim an OTP: only succeeds if it's still unused at the moment
+  // of the write. Closes the race window between "check it's valid" and "mark
+  // it used" — without this, two concurrent requests can both pass the match
+  // check and both proceed as if they won.
+  async claimOtp(otpId: string): Promise<boolean> {
+    const result = await prisma.otpToken.updateMany({
+      where: { id: otpId, isUsed: false },
+      data: { isUsed: true, usedAt: new Date() },
+    });
+    return result.count === 1;
+  }
+
   async invalidateUnusedOtps(userId: string, purpose: OtpPurpose): Promise<void> {
     await prisma.otpToken.updateMany({
       where: {
