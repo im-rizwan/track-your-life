@@ -9,6 +9,25 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
+  // express.json() throws a SyntaxError (with a `body` property attached) when
+  // the request body isn't valid JSON. This is a client error, not a server fault.
+  if (err instanceof SyntaxError && 'body' in err) {
+    logger.warn('Malformed JSON body', {
+      requestId: req.requestId,
+      path: req.path,
+      method: req.method,
+    });
+
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_JSON',
+        message: 'Request body contains malformed JSON',
+      },
+    });
+    return;
+  }
+
   if (err instanceof AppError) {
     logger.warn('Operational error', {
       requestId: req.requestId,
