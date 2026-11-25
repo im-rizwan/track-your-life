@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../errors/app-error';
 import { logger } from '../utils/logger';
 import { config } from '../config/env.config';
@@ -23,6 +24,31 @@ export const errorHandler = (
       error: {
         code: 'INVALID_JSON',
         message: 'Request body contains malformed JSON',
+      },
+    });
+    return;
+  }
+
+  // Prisma unique-constraint violations (P2002) happen when two concurrent
+  // requests race past an application-level existence check and both attempt
+  // to insert the same unique value. This is a conflict, not a server fault —
+  // covers every endpoint with a @unique field, not just the ones that remember
+  // to catch it locally.
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    const target = (err.meta?.target as string[] | undefined)?.join(', ') ?? 'field';
+
+    logger.warn('Unique constraint conflict', {
+      requestId: req.requestId,
+      target,
+      path: req.path,
+      method: req.method,
+    });
+
+    res.status(409).json({
+      success: false,
+      error: {
+        code: 'CONFLICT',
+        message: `A record with this ${target} already exists`,
       },
     });
     return;
