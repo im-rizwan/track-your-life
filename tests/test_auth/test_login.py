@@ -1,10 +1,9 @@
 """Tests for POST /api/v1/auth/login."""
 
-import time
-
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
-from utils.auth_helpers import unique_email, create_verified_user
+from utils.auth_helpers import unique_email
 from utils.assertions import (
     assert_success,
     assert_unauthorized,
@@ -19,18 +18,11 @@ class TestLoginSuccess:
 
     def test_login_with_valid_credentials_returns_200(self, api_client, registered_user):
         """Login with correct email and password returns 200."""
-        time.sleep(1)
         resp = api_client.login(registered_user["email"], registered_user["password"])
         assert_success(resp)
 
     def test_login_returns_user_and_tokens(self, api_client, registered_user):
-        """Successful login returns user object and tokens.
-
-        A 1-second sleep prevents a Prisma unique constraint violation on the
-        RefreshToken table that occurs when two JWTs with the same payload are
-        generated in the same second (producing identical token strings).
-        """
-        time.sleep(1)
+        """Successful login returns user object and tokens."""
         resp = api_client.login(registered_user["email"], registered_user["password"])
         body = assert_success(resp)
 
@@ -42,7 +34,6 @@ class TestLoginSuccess:
 
     def test_login_user_excludes_password(self, api_client, registered_user):
         """Returned user object does not contain the password field."""
-        time.sleep(1)
         resp = api_client.login(registered_user["email"], registered_user["password"])
         body = assert_success(resp)
 
@@ -50,7 +41,6 @@ class TestLoginSuccess:
 
     def test_login_email_case_insensitive(self, api_client, registered_user):
         """Login works with different email casing."""
-        time.sleep(1)
         resp = api_client.login(
             registered_user["email"].upper(), registered_user["password"]
         )
@@ -115,6 +105,50 @@ class TestLoginAccountLocking:
         body = assert_unauthorized(resp)
         message = body["error"]["message"].lower()
         assert "invalid" in message or "incorrect" in message
+
+
+class TestLoginConcurrency:
+    """Concurrent token issuance for the same account."""
+
+    def test_concurrent_logins_all_succeed_with_distinct_tokens(
+        self, api_client, registered_user
+    ):
+        """10 parallel logins with the same valid credentials, all within the same
+        wall-clock second, must all succeed — each a legitimate independent session
+        (e.g. multiple devices logging in near-simultaneously). Regression test:
+        generateRefreshToken() previously signed {userId, email} with no random
+        claim, so two tokens issued for the same user in the same second were
+        byte-identical, colliding on RefreshToken.token's unique constraint and
+        causing spurious 409s for what should be independent successful logins."""
+        email = registered_user["email"]
+        password = registered_user["password"]
+
+        def attempt():
+            return api_client.login(email, password)
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(200) == 10, f"Expected all ten 200s, got: {status_codes}"
+
+        tokens = [r.json()["data"]["tokens"]["refreshToken"] for r in responses]
+        assert len(set(tokens)) == 10, "Expected ten distinct refresh tokens, got duplicates"
+
+    def test_concurrent_wrong_password_attempts_never_500(self, api_client, registered_user):
+        """10 parallel wrong-password attempts (racing the failed-attempt counter
+        and potentially crossing the lockout threshold mid-flight) must never 500."""
+        email = registered_user["email"]
+
+        def attempt():
+            return api_client.login(email, "Wr0ng@Pass!")
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert 500 not in status_codes, f"Got a 500 in concurrent login attempts: {status_codes}"
+        assert all(c == 401 for c in status_codes), f"Expected all 401s, got: {status_codes}"
 
 
 class TestLoginInputValidation:
