@@ -3,6 +3,9 @@
 Covers GET /today, PATCH /adjustments, and POST /refresh.
 """
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from utils.assertions import (
@@ -93,6 +96,57 @@ class TestGetTodaysPrayerTimes:
         """Returns 401 without an auth token."""
         resp = api_client.get(TODAY_ENDPOINT)
         assert_unauthorized(resp)
+
+
+class TestGetTodaysPrayerTimesAutomaticMode:
+    """Tests exercising the AUTOMATIC path (real Aladhan API call), which is
+    where the date-computation bug lived — the MANUAL-mode tests above never
+    touch this code path at all."""
+
+    def test_automatic_mode_returns_200(self, api_client, automatic_prayer_config):
+        """With an AUTOMATIC config and location set, GET /today succeeds."""
+        headers = automatic_prayer_config["headers"]
+        resp = api_client.get(TODAY_ENDPOINT, headers=headers)
+        assert_success(resp)
+
+    def test_automatic_mode_date_matches_users_local_timezone_not_server(
+        self, api_client, automatic_prayer_config
+    ):
+        """The returned date must be "today" in the user's own timezone
+        (America/Los_Angeles, from the fixture's coordinates), not the
+        server's local/UTC date. Regression test: getTodaysPrayerTimes()
+        used `new Date(); setHours(0,0,0,0)` — the server's own clock —
+        completely ignoring the user's stored timezone, which for part of
+        every day produces prayer times fetched, cached, and served for the
+        wrong calendar day entirely."""
+        headers = automatic_prayer_config["headers"]
+        resp = api_client.get(TODAY_ENDPOINT, headers=headers)
+        body = assert_success(resp)
+
+        expected_date = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+        assert body["data"]["date"] == expected_date, (
+            f"Expected date in user's timezone (America/Los_Angeles): {expected_date}, "
+            f"got {body['data']['date']} — looks like server-local date is being used instead"
+        )
+
+    def test_automatic_mode_source_is_api(self, api_client, automatic_prayer_config):
+        """AUTOMATIC mode's response reports source=API."""
+        headers = automatic_prayer_config["headers"]
+        resp = api_client.get(TODAY_ENDPOINT, headers=headers)
+        body = assert_success(resp)
+        assert body["data"]["source"] == "API"
+
+    def test_refresh_date_matches_users_local_timezone(
+        self, api_client, automatic_prayer_config
+    ):
+        """POST /refresh (force API re-fetch) also uses the user's local date,
+        not the server's — same underlying fix, different call site."""
+        headers = automatic_prayer_config["headers"]
+        resp = api_client.post(REFRESH_ENDPOINT, headers=headers)
+        body = assert_success(resp)
+
+        expected_date = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+        assert body["data"]["date"] == expected_date
 
 
 # ============================================================================

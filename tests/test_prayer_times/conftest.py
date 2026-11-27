@@ -39,3 +39,35 @@ def manual_prayer_config(api_client, db_connection):
         "headers": headers,
         "manualTimes": MANUAL_TIMES,
     }
+
+
+@pytest.fixture
+def automatic_prayer_config(api_client, db_connection):
+    """Register a verified user, set a Los Angeles location (deliberately far
+    from UTC and from the test machine's own timezone so date-boundary bugs
+    are likely to surface), and create an AUTOMATIC prayer times config.
+
+    Returns dict with: email, password, user, tokens, headers.
+    """
+    user_data = create_verified_user(api_client, db_connection)
+    headers = get_auth_headers(user_data["tokens"])
+
+    # Los Angeles coordinates
+    profile_resp = api_client.put(
+        "/api/v1/users/profile",
+        json={"latitude": 34.0522, "longitude": -118.2437},
+        headers=headers,
+    )
+    assert profile_resp.status_code == 200, f"Failed to set location: {profile_resp.text}"
+
+    config_resp = api_client.put(
+        "/api/v1/prayer-times/config",
+        json={"calculationMode": "AUTOMATIC", "apiMethod": "ISNA"},
+        headers=headers,
+    )
+    assert config_resp.status_code == 200, f"Failed to create automatic config: {config_resp.text}"
+
+    return {
+        **user_data,
+        "headers": headers,
+    }
