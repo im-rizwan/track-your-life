@@ -49,12 +49,12 @@ account's task creation at the exact UTC/local date boundary.
 ### Users (`/api/v1/users`) — 6 endpoints
 | Endpoint | Status |
 |---|---|
-| GET /profile | ⬜ |
-| PUT /profile | ⬜ |
-| POST /onboarding | ⬜ |
-| GET /onboarding/status | ⬜ |
-| POST /email/request | ⬜ |
-| POST /email/confirm | ⬜ |
+| GET /profile | ✅ |
+| PUT /profile | ✅ |
+| POST /onboarding | ✅ |
+| GET /onboarding/status | ✅ |
+| POST /email/request | ✅ |
+| POST /email/confirm | ✅ |
 
 ### Prayer Times (`/api/v1/prayer-times`) — 4 endpoints
 | Endpoint | Status |
@@ -393,6 +393,26 @@ Also added: a reuse-detection test chaining 5 rapid refreshes, and concurrency t
 logout, and logout-all (10 parallel calls each, asserting no `500`s).
 
 ✅ All four declared **PROD READY**.
+
+---
+
+### ✅ Users module: GET/PUT /profile, POST /onboarding, GET /onboarding/status, POST /email/request, POST /email/confirm
+
+**Bug found & fixed:**
+1. 🐛→✅ **FIXED** — `latitude`/`longitude` were independently optional in both `update-profile.dto.ts`
+   and `onboarding.dto.ts` with no cross-field constraint. A client could submit just `latitude`
+   alone, leaving the stored `longitude` stale/mismatched — the service only recalculates
+   timezone when *both* are present together (`getTimezoneFromCoordinates` is gated on
+   `data.latitude !== undefined && data.longitude !== undefined`). Added a `.refine()` requiring
+   both-or-neither to both DTOs.
+
+Also added: malformed-JSON (`400`) and SQL-injection-shaped-input checks across all 5 endpoints,
+a "change email to your own current email" case (correctly `409`, not a silent no-op), an
+expired-OTP case for email-confirm, exact-boundary age tests (6 and 120), and concurrency tests
+for profile update (10 parallel, never `500`) and email-confirm (same `claimOtp` race proven on
+verify-email/reset-password — 10 parallel, exactly one success, never `500`).
+
+53 tests pass (18 new, 35 pre-existing). All 5 declared **PROD READY**.
 
 ---
 
