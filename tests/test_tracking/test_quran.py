@@ -211,6 +211,18 @@ class TestCreateQuranLog:
 
         assert_unauthorized(resp)
 
+    def test_create_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500. Spot
+        check confirming the global malformed-JSON fix (error-handler.ts)
+        reaches the tracking module too, not just auth/users/customization."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{BASE_URL}",
+            data='{"surahName":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
 
 # ── GET /quran/:id ──────────────────────────────────────────────────────────
 

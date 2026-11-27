@@ -182,6 +182,32 @@ class TestCreateFitrahPracticeLog:
 
         assert_unauthorized(resp)
 
+    def test_create_duplicate_practice_id_returns_422(
+        self, api_client, auth_headers, fitrah_practice_ids
+    ):
+        """A duplicate practice ID within the array is rejected with a clear
+        422, not a confusing 409. Regression test: fitrahPracticeOnLog
+        .createMany() has no skipDuplicates, so a duplicate ID previously
+        threw a Prisma P2002 mid-transaction (rolling back the whole log),
+        surfacing as a misleading "already exists" 409 for what is actually
+        a client input mistake, not a real conflict."""
+        practice_id = fitrah_practice_ids[0]
+        payload = fitrah_practice_log_payload([practice_id, practice_id])
+
+        resp = api_client.post(URL, json=payload, headers=auth_headers)
+
+        assert_validation_error(resp)
+
+    def test_create_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{URL}",
+            data='{"practices":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
 
 # ── GET BY ID ─────────────────────────────────────────────────────────────────
 
@@ -299,6 +325,22 @@ class TestUpdateFitrahPracticeLog:
         )
 
         assert_unauthorized(resp)
+
+    def test_update_duplicate_practice_id_returns_422(
+        self, api_client, auth_headers, fitrah_practice_ids
+    ):
+        """A duplicate practice ID within the update array is rejected with
+        a clear 422, same fix as on create."""
+        created = _create_log(api_client, auth_headers, fitrah_practice_ids[:1])
+        practice_id = fitrah_practice_ids[0]
+
+        resp = api_client.put(
+            _url(created["id"]),
+            json={"practices": [practice_id, practice_id]},
+            headers=auth_headers,
+        )
+
+        assert_validation_error(resp)
 
 
 # ── DELETE ────────────────────────────────────────────────────────────────────
