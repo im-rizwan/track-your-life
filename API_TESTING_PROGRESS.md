@@ -79,18 +79,18 @@ account's task creation at the exact UTC/local date boundary.
 ### Customization (`/api/v1/customization`) — 52 endpoints
 | Entity | Endpoints | Status |
 |---|---|---|
-| Prayer Locations | GET/POST/PUT/DELETE | ⬜ |
-| Other Prayer Types | GET/POST/PUT/DELETE | ⬜ |
-| Dhikr Types | GET/POST/PUT/DELETE | ⬜ |
-| Fasting Types | GET/POST/PUT/DELETE | ⬜ |
-| Charity Types | GET/POST/PUT/DELETE | ⬜ |
-| Islamic Study Subjects | GET/POST/PUT/DELETE | ⬜ |
-| Study Modes | GET/POST/PUT/DELETE | ⬜ |
-| Fitness Activities | GET/POST/PUT/DELETE | ⬜ |
-| Nutrition Foods | GET/POST/PUT/DELETE | ⬜ |
-| Fitrah Practices | GET/POST/PUT/DELETE | ⬜ |
-| Skills (+ topics) | GET/POST/PUT/DELETE | ⬜ |
-| Intentions | GET/POST/PUT/DELETE | ⬜ |
+| Prayer Locations | GET/POST/PUT/DELETE | ✅ |
+| Other Prayer Types | GET/POST/PUT/DELETE | ✅ |
+| Dhikr Types | GET/POST/PUT/DELETE | ✅ |
+| Fasting Types | GET/POST/PUT/DELETE | ✅ |
+| Charity Types | GET/POST/PUT/DELETE | ✅ |
+| Islamic Study Subjects | GET/POST/PUT/DELETE | ✅ |
+| Study Modes | GET/POST/PUT/DELETE | ✅ |
+| Fitness Activities | GET/POST/PUT/DELETE | ✅ |
+| Nutrition Foods | GET/POST/PUT/DELETE | ✅ |
+| Fitrah Practices | GET/POST/PUT/DELETE | ✅ |
+| Skills (+ topics) | GET/POST/PUT/DELETE | ✅ |
+| Intentions | GET/POST/PUT/DELETE | ✅ |
 
 ### Tracking (`/api/v1/tracking`) — 70 endpoints
 | Domain | Status |
@@ -457,6 +457,28 @@ Verified: correct counts/structure/names (pre-existing, already strong), auth re
 checked the field existed, not that it was honored) for the 5 DB-backed lookups.
 
 **No bugs found.** 48 tests pass. All 8 declared **PROD READY**.
+
+---
+
+### ✅ Customization module: all 12 entities, 52 endpoints
+
+Batched per the user's instruction: all CRUD operations for a domain tested together.
+
+**No bugs found.** The generic service layer (`customization.service.ts`) already handles the
+classes of bugs found elsewhere in this campaign correctly by design: creates attempt the Prisma
+insert directly and catch `P2002` inline (no check-then-insert race window), and system-default
+items (`userId: null`) are protected via ownership-scoped queries that return 404 rather than a
+distinguishable 403 — actually the *safer* choice, since it avoids confirming an item's existence
+to a non-owner.
+
+One real test-coverage gap found and fixed: `test_other_prayer_types.py` was the only
+customization test file missing cross-user ownership checks (update/delete by a different user)
+that every sibling file already had. Added those, plus malformed-JSON and concurrent-duplicate
+-create tests (proving the P2002-catch pattern is race-safe) across all 4 customization test files
+that lacked them: other-prayer-types, prayer-locations, skills, intentions. The 8 generic "simple"
+entities already had this via `test_simple_entities.py`'s parametrization — extended there too.
+
+298 tests pass. All 52 endpoints across 12 entities declared **PROD READY**.
 
 ---
 
