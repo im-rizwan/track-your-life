@@ -65,6 +65,14 @@ class TestPrayerStatuses:
         resp = api_client.get(self.ENDPOINT)
         assert_unauthorized(resp)
 
+    def test_response_order_matches_sort_order(self, api_client, auth_headers):
+        """Items are returned in ascending sortOrder, not just carrying the field."""
+        resp = api_client.get(self.ENDPOINT, headers=auth_headers)
+        body = assert_success(resp)
+
+        sort_orders = [item["sortOrder"] for item in body["data"]]
+        assert sort_orders == sorted(sort_orders)
+
 
 # ============================================================================
 # Quran Activity Types
@@ -119,6 +127,14 @@ class TestQuranActivityTypes:
         resp = api_client.get(self.ENDPOINT)
         assert_unauthorized(resp)
 
+    def test_response_order_matches_sort_order(self, api_client, auth_headers):
+        """Items are returned in ascending sortOrder, not just carrying the field."""
+        resp = api_client.get(self.ENDPOINT, headers=auth_headers)
+        body = assert_success(resp)
+
+        sort_orders = [item["sortOrder"] for item in body["data"]]
+        assert sort_orders == sorted(sort_orders)
+
 
 # ============================================================================
 # Task Priorities
@@ -169,6 +185,14 @@ class TestTaskPriorities:
         """Returns 401 without an auth token."""
         resp = api_client.get(self.ENDPOINT)
         assert_unauthorized(resp)
+
+    def test_response_order_matches_sort_order(self, api_client, auth_headers):
+        """Items are returned in ascending sortOrder, not just carrying the field."""
+        resp = api_client.get(self.ENDPOINT, headers=auth_headers)
+        body = assert_success(resp)
+
+        sort_orders = [item["sortOrder"] for item in body["data"]]
+        assert sort_orders == sorted(sort_orders)
 
 
 # ============================================================================
@@ -221,6 +245,14 @@ class TestTaskStatuses:
         resp = api_client.get(self.ENDPOINT)
         assert_unauthorized(resp)
 
+    def test_response_order_matches_sort_order(self, api_client, auth_headers):
+        """Items are returned in ascending sortOrder, not just carrying the field."""
+        resp = api_client.get(self.ENDPOINT, headers=auth_headers)
+        body = assert_success(resp)
+
+        sort_orders = [item["sortOrder"] for item in body["data"]]
+        assert sort_orders == sorted(sort_orders)
+
 
 # ============================================================================
 # Fitness Intensities
@@ -271,6 +303,14 @@ class TestFitnessIntensities:
         """Returns 401 without an auth token."""
         resp = api_client.get(self.ENDPOINT)
         assert_unauthorized(resp)
+
+    def test_response_order_matches_sort_order(self, api_client, auth_headers):
+        """Items are returned in ascending sortOrder, not just carrying the field."""
+        resp = api_client.get(self.ENDPOINT, headers=auth_headers)
+        body = assert_success(resp)
+
+        sort_orders = [item["sortOrder"] for item in body["data"]]
+        assert sort_orders == sorted(sort_orders)
 
 
 # ============================================================================
