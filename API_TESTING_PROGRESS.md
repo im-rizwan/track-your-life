@@ -1,5 +1,85 @@
 # Production API Testing — Progress Tracker
 
+## CI Pipeline (added 2026-11-27)
+
+Added `.github/workflows/ci.yml` — two jobs on every push/PR to `main`:
+1. **Lint & Typecheck**: `tsc --noEmit`, `eslint`, `npm run build`.
+2. **Integration Tests**: the full pytest suite (`tests/`), via the same Docker-based mechanism
+   used locally throughout this campaign (the `app_process`/`postgres_container` fixtures spin up
+   their own Postgres container and app process — no extra CI-specific setup needed).
+
+This was the single biggest gap flagged at the end of the API testing campaign: 989 passing tests
+existed, but nothing ran them automatically on push. Also ran `npm run lint:fix` to clear 167
+pre-existing Prettier formatting errors that would otherwise fail the new CI lint step — verified
+every change was whitespace-only via `git diff -w` before trusting it.
+
+## Security Review & Pentesting Pass (2026-11-27)
+
+Systematic manual review (not diff-based — the `security-review` skill expects a PR/branch diff
+context, which didn't fit a full-codebase audit) covering OWASP-relevant categories: auth/session
+management, access control/IDOR, injection, secrets handling, rate limiting, CORS, security
+headers, error disclosure, and dependency vulnerabilities.
+
+**3 real issues found & fixed:**
+1. 🐛→✅ **FIXED** — CORS was configured with `origin: '*'` + `credentials: true`, an invalid
+   combination browsers reject outright per spec (can't use wildcard origin with credentialed
+   requests). It also served no purpose: this API authenticates via a Bearer token in the
+   `Authorization` header, not cookies — cookies were never part of the auth model. Removed
+   `credentials: true`. Verified live: the header is now absent from responses.
+2. 🐛→✅ **FIXED** — `jwt.verify()` calls for both access and refresh tokens didn't pin an explicit
+   `algorithms` allowlist, relying on `jsonwebtoken`'s default inference from the token's own
+   header. No live exploit path exists today (both secrets are symmetric HS256-only — no RS256
+   public key in play for the classic algorithm-confusion attack), but explicit pinning is
+   standard defense-in-depth and costs nothing. Added `algorithms: ['HS256']` to both.
+3. 🐛→✅ **FIXED** — `authenticate()` middleware checked that a token decodes to a real, existing
+   user but never checked `isActive`, unlike `login()` which does. Currently dormant — grepped
+   the whole codebase and confirmed no code path ever sets `isActive=false` (account deletion is
+   a hard delete, not a soft deactivation) — but a token issued before any future deactivation
+   feature ships would otherwise keep working until it naturally expired (up to 15 minutes).
+   Fixed for correctness before that gap could become live and exploitable.
+
+**Verified secure (no action needed), with how each was checked:**
+- **Algorithm-confusion / `alg:none` forgery** — crafted a forged JWT with `alg: none` and a
+  valid-looking payload for a real user, sent it live against production. Correctly rejected
+  (`401`) — `jsonwebtoken` v9 refuses `none` by default.
+- **Access/refresh token secret reuse** — attempted to use a live access token as a refresh token
+  against `/auth/refresh`. Correctly rejected, confirming the two JWT secrets are genuinely
+  distinct (if they were accidentally equal, this would have succeeded).
+- **Rate-limit bypass via `X-Forwarded-For` spoofing** — `trust proxy: 1` is the textbook-correct
+  setting for exactly one reverse proxy (Render's edge) in front of the app; client-supplied XFF
+  entries beyond that single trusted hop are ignored when deriving the real client IP.
+- **Mass assignment** — grepped for `...req.body` spreads and `req.body as any` casts across all
+  controllers/services: none found. Every write path goes through an explicit Zod schema.
+- **SQL/NoSQL injection** — Prisma parameterizes all queries; the only raw query
+  (`$queryRaw` in the health check) is a hardcoded tagged-template literal with zero
+  interpolation. Also already exhaustively tested with SQL-injection-shaped strings as field
+  values throughout the API testing campaign above — all correctly rejected by Zod validation,
+  never reaching the database as anything but an inert string.
+- **RCE vectors** — grepped for `eval(`, `child_process`, `exec(`: none found anywhere in `src/`.
+- **Sensitive data in logs** — grepped all `logger.*` calls for password/token/OTP field names,
+  and checked the request-logging middleware: it logs method/path/IP/user-agent only, never
+  `req.body`. No secrets found leaking into logs.
+- **Swagger/API-docs exposure in production** — confirmed live: `/api-docs` and `/api-docs.json`
+  both `404` on the production URL (gated behind `ENABLE_SWAGGER`, unset in prod).
+- **Verbose error disclosure** — confirmed `error-handler.ts` only returns stack
+  traces/implementation details when `NODE_ENV !== production`; tested malformed/weird-shaped
+  input (nested objects where strings expected) against live production — clean generic Zod
+  validation messages, no internal details leaked.
+- **Secrets in the repo/Docker image** — `.env` is gitignored and also explicitly excluded via
+  `.dockerignore`, so it's never baked into the built image regardless of build context.
+- **Destructive-action safeguards** — account deletion requires password + a literal `"DELETE"`
+  confirmation string + a follow-up OTP (three factors for an irreversible action).
+- **npm audit** — re-ran against current `package.json`: `0 vulnerabilities` in production
+  dependencies (the earlier campaign's fix still holds; nothing new introduced since).
+
+**Known accepted tradeoff, not a bug:** account lockout after 5 failed attempts is tracked
+per-user, not per-IP, which is more robust against distributed brute-force but means anyone who
+knows a victim's email can grief-lock their account from any IP. Common, widely-accepted tradeoff
+for this class of app; not treated as a finding requiring a fix.
+
+Full suite re-verified after all three fixes: **989 passed, 1 skipped, 0 failed.** All three
+confirmed live on production (CORS header absent, `alg:none` still rejected post-fix).
+
 **Target:** `https://track-your-life.onrender.com`
 **Method:** One API at a time, full edge-case pass against live production, bugs fixed and pushed before moving to the next. Each endpoint is marked `✅ PROD READY` only after every planned test case passes against production.
 
