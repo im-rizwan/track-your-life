@@ -67,14 +67,14 @@ account's task creation at the exact UTC/local date boundary.
 ### Reference (`/api/v1/reference`) — 8 endpoints (read-only lookup data)
 | Endpoint | Status |
 |---|---|
-| GET /prayer-statuses | ⬜ |
-| GET /quran-activity-types | ⬜ |
-| GET /task-priorities | ⬜ |
-| GET /task-statuses | ⬜ |
-| GET /fitness-intensities | ⬜ |
-| GET /surahs | ⬜ |
-| GET /juzz | ⬜ |
-| GET /countries | ⬜ |
+| GET /prayer-statuses | ✅ |
+| GET /quran-activity-types | ✅ |
+| GET /task-priorities | ✅ |
+| GET /task-statuses | ✅ |
+| GET /fitness-intensities | ✅ |
+| GET /surahs | ✅ |
+| GET /juzz | ✅ |
+| GET /countries | ✅ |
 
 ### Customization (`/api/v1/customization`) — 52 endpoints
 | Entity | Endpoints | Status |
@@ -445,6 +445,18 @@ verify-email/reset-password — 10 parallel, exactly one success, never `500`).
      machine's own "today". Passes cleanly now for both GET /today and POST /refresh.
 
 All 33 tests pass (37 total incl. new AUTOMATIC-mode suite). All 4 declared **PROD READY**.
+
+---
+
+### ✅ Reference module: all 8 read-only lookup endpoints
+
+Low-risk by design: every endpoint is a parameterless authenticated GET (no body, no query
+params), so most edge-case categories (injection, malformed JSON, validation) don't apply at all.
+Verified: correct counts/structure/names (pre-existing, already strong), auth requirement on all
+8, and added a check that response order actually respects `sortOrder` ascending (previously only
+checked the field existed, not that it was honored) for the 5 DB-backed lookups.
+
+**No bugs found.** 48 tests pass. All 8 declared **PROD READY**.
 
 ---
 
