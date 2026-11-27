@@ -95,20 +95,20 @@ account's task creation at the exact UTC/local date boundary.
 ### Tracking (`/api/v1/tracking`) — 70 endpoints
 | Domain | Status |
 |---|---|
-| Daily Prayers | ⬜ |
-| Other Prayers | ⬜ |
-| Quran Logs | ⬜ |
-| Dhikr Logs | ⬜ |
-| Fasting Logs | ⬜ |
-| Charity Logs | ⬜ |
-| Islamic Study Logs | ⬜ |
-| Skill Progress Logs | ⬜ |
-| Fitness Logs | ⬜ |
-| Nutrition Logs | ⬜ |
-| Sleep Logs | ⬜ |
-| Fitrah Practice Logs | ⬜ |
-| Tasks | ⬜ |
-| Intention Logs | ⬜ |
+| Daily Prayers | ✅ |
+| Other Prayers | ✅ |
+| Quran Logs | ✅ |
+| Dhikr Logs | ✅ |
+| Fasting Logs | ✅ |
+| Charity Logs | ✅ |
+| Islamic Study Logs | ✅ |
+| Skill Progress Logs | ✅ |
+| Fitness Logs | ✅ |
+| Nutrition Logs | ✅ |
+| Sleep Logs | ✅ |
+| Fitrah Practice Logs | ✅ |
+| Tasks | ✅ |
+| Intention Logs | ✅ |
 
 ### Health (`/health`, `/api/v1/health`) — 2 endpoints — already smoke-tested working ✅
 
@@ -479,6 +479,33 @@ that lacked them: other-prayer-types, prayer-locations, skills, intentions. The 
 entities already had this via `test_simple_entities.py`'s parametrization — extended there too.
 
 298 tests pass. All 52 endpoints across 12 entities declared **PROD READY**.
+
+---
+
+### ✅ Tracking module: all 14 domains, 70 endpoints
+
+Batched per the user's instruction. This module's cross-cutting timezone bug (affecting every
+domain's date validation) was already found and fixed earlier in the campaign (see the
+cross-cutting note at the top of this file) — confirmed all 14 DTOs consistently use the shared,
+now-fixed `trackingDateSchema`, with no domain rolling its own inconsistent date validation.
+
+**Bug found & fixed:**
+1. 🐛→✅ **FIXED** — Fitrah practice logs' `practices` array had no duplicate-ID check.
+   `fitrahPracticeOnLog.createMany()` has no `skipDuplicates`, so a duplicate ID in the array threw
+   a Prisma `P2002` mid-transaction (rolling back the whole log creation), surfacing as a
+   misleading `409 "already exists"` for what is actually a client input mistake, not a real
+   conflict. Added a `.refine()` rejecting duplicates with a clear `422` on both create and update.
+
+Architecturally, this module has no unique-constraint-on-create risk for the logs themselves (no
+`@@unique` on any tracking-log table — multiple entries per day per type are allowed by design),
+so the TOCTOU-race class of bug found in auth doesn't apply here the same way. All FK validations
+consistently use an ownership-scoped `findAccessibleX(id, userId)` pattern before create/update.
+
+Added: the duplicate-ID regression tests above, and one malformed-JSON spot check (on quran logs)
+confirming the global fix (shared middleware) reaches this module too — not re-tested on all 70
+endpoints individually since it's the same code path for every one.
+
+391 tests pass. All 70 endpoints across 14 domains declared **PROD READY**.
 
 ---
 
