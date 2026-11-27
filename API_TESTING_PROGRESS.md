@@ -5,6 +5,15 @@
 
 **Legend:** ⬜ Not started · 🔄 In progress · 🐛 Bug found (fixing) · ✅ Prod ready
 
+**Batching strategy (per user request, 2026-11-27):** for domains with full CRUD (Customization's
+12 entities, Tracking's 14 domains), GET/POST/PUT/DELETE for a given domain are tested together as
+one unit rather than closing out GET alone before touching POST — they share fixtures and bug
+classes (ownership isolation, FK validation, etc.). This is a batching of scope, not a drop in
+depth: each domain still gets the same per-case rigor as register/verify-email (format validation,
+auth checks, cross-user isolation, boundary values, injection attempts, concurrency races,
+malformed JSON) across all its CRUD operations. Auth/Users/Prayer-Times/Reference endpoints aren't
+pure CRUD and continue to be tested individually.
+
 **Also per user request:** every bug found gets a permanent regression test added to the pytest
 suite (`tests/`), not just a one-off manual check — so re-running `pytest` later actually proves
 the fix still holds. The full suite is run for real (via Docker) after each fix, not just read
@@ -296,6 +305,54 @@ ones, after the claimOtp fix landed.
 explicitly named `test_logout_with_invalid_token_returns_500` whose own docstring admits this is
 not ideal behavior (an unhandled Prisma "record not found" on logout surfaces as a raw 500 instead
 of being idempotent). Will fix when the logout endpoint comes up in the queue.
+
+---
+
+### ✅ POST /api/v1/auth/login
+
+#### Test Cases
+
+| # | Case | Result |
+|---|---|---|
+| 1 | Valid credentials | ✅ 200, user+tokens |
+| 2 | Wrong password | ✅ 401 |
+| 3 | Non-existent email | ✅ 401 (same message as wrong password — no enumeration) |
+| 4 | Unverified email | ✅ 401 "Please verify your email first" |
+| 5 | Deactivated account (isActive=false) | ✅ 401 "Account is deactivated" |
+| 6 | Case-insensitive email | ✅ 200 |
+| 7 | Account lockout after 5 failed attempts | 🐛→✅ message said "30 minutes", actual window is 15 — fixed |
+| 8 | Lockout blocks even correct password | ✅ 401 while locked |
+| 9 | Missing email / missing password | ✅ 422 |
+| 10 | Empty body | ✅ 422 |
+| 11 | Empty string password | ✅ 422 (min length 1 — note: login's password schema has no complexity check, by design, since it's validating against stored hash not setting a new one) |
+| 12 | SQL injection in email | ✅ 422 (invalid email format) |
+| 13 | Malformed JSON | ✅ 400 (global fix holds) |
+| 14 | Response never leaks password hash | ✅ |
+| 15 | Returned tokens are genuinely usable | ✅ (proven via tracking-date production confirmation using real account earlier) |
+| 16 | Concurrent login requests (same valid credentials, 10 parallel) | 🐛→✅ fixed, see below |
+| 17 | Concurrent wrong-password requests near lockout boundary (race on failed-attempt counter) | ✅ no 500s, all 401s |
+
+**Bugs found & fixed:**
+1. 🐛→✅ **FIXED** — Lockout error message said "Account locked for 30 minutes" but the actual
+   rolling window checked is 15 minutes (`countRecentFailedAttempts(user.id, 15)`), consistent
+   with every other rate-limit window in this app. Not a security hole (the real behavior is the
+   intended 15-min one), but a user-facing message that overstated lockout duration by 2x. Fixed
+   the string to match actual behavior.
+2. 🐛→✅ **FIXED** — **Token-collision bug**, found before even running TC16: an existing pytest
+   test had a `time.sleep(1)` with a docstring admitting it was there to dodge "a Prisma unique
+   constraint violation... when two JWTs with the same payload are generated in the same second
+   (producing identical token strings)" — a workaround for a real bug, not a timing fluke.
+   `generateRefreshToken()` signed only `{userId, email}` with no random claim; JWTs are
+   deterministic from payload + issued-at (second granularity), so two refresh tokens issued for
+   the same user within the same wall-clock second were byte-identical, colliding on
+   `RefreshToken.token`'s unique constraint. This affects **every** token-issuing flow (login,
+   register, verify-email, email-change-confirm), not just login — e.g. two devices logging in
+   within the same second, or any client retry-on-timeout, would get a spurious 409 instead of
+   two independent valid sessions. Fixed by adding a random `jti` (crypto.randomUUID()) to the
+   refresh token payload. Removed the `sleep(1)` workaround from the test and added a dedicated
+   concurrency test asserting 10 parallel logins yield 10 distinct tokens — passes cleanly now.
+
+✅ **POST /api/v1/auth/login is declared PROD READY.**
 
 ---
 
