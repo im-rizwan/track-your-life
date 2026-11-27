@@ -1,6 +1,7 @@
 """Tests for /api/v1/customization/skills CRUD and /skills/:skillId/topics sub-resource."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.assertions import (
     assert_success,
@@ -141,6 +142,32 @@ class TestCreateSkill:
         resp = api_client.post(SKILLS_URL, json={"name": "No Auth Skill"})
 
         assert_unauthorized(resp)
+
+    def test_create_skill_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{SKILLS_URL}",
+            data='{"name":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
+    def test_concurrent_duplicate_skill_create_never_500(self, api_client, auth_headers):
+        """10 parallel creates with the same name must yield exactly one 201
+        and the rest 409 — never a 500."""
+        name = "Race Condition Skill"
+
+        def attempt():
+            return api_client.post(SKILLS_URL, json={"name": name}, headers=auth_headers)
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(201) == 1, f"Expected exactly one 201, got: {status_codes}"
+        assert status_codes.count(409) == 9, f"Expected nine 409s, got: {status_codes}"
+        assert 500 not in status_codes, f"Got a 500 in concurrent create: {status_codes}"
 
 
 # ── PUT /skills/:id ──────────────────────────────────────────────────────────

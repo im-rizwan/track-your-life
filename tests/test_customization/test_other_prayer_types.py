@@ -5,6 +5,7 @@ an additional `requiresRakahCount` boolean field.
 """
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.assertions import (
     assert_success,
@@ -72,6 +73,22 @@ class TestListOtherPrayerTypes:
         resp = api_client.get(BASE_URL)
 
         assert_unauthorized(resp)
+
+    def test_list_does_not_show_other_users_items(
+        self, api_client, auth_headers, second_auth_headers
+    ):
+        """Items created by user 2 are not visible to user 1."""
+        create_resp = api_client.post(
+            BASE_URL,
+            json={"name": "User 2 Private Type", "requiresRakahCount": False},
+            headers=second_auth_headers,
+        )
+        created_id = create_resp.json()["data"]["id"]
+
+        resp = api_client.get(BASE_URL, headers=auth_headers)
+        body = assert_success(resp)
+        ids = [item["id"] for item in body["data"]]
+        assert created_id not in ids
 
     def test_get_includes_requires_rakah_count(self, api_client, auth_headers):
         """Each item in the list includes the requiresRakahCount field."""
@@ -176,6 +193,36 @@ class TestCreateOtherPrayerType:
 
         assert_unauthorized(resp)
 
+    def test_create_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{BASE_URL}",
+            data='{"name":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
+    def test_concurrent_duplicate_create_never_500(self, api_client, auth_headers):
+        """10 parallel creates with the same name must yield exactly one 201
+        and the rest 409 — never a 500."""
+        name = "Race Condition Prayer Type"
+
+        def attempt():
+            return api_client.post(
+                BASE_URL,
+                json={"name": name, "requiresRakahCount": False},
+                headers=auth_headers,
+            )
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(201) == 1, f"Expected exactly one 201, got: {status_codes}"
+        assert status_codes.count(409) == 9, f"Expected nine 409s, got: {status_codes}"
+        assert 500 not in status_codes, f"Got a 500 in concurrent create: {status_codes}"
+
 
 # ── PUT /other-prayer-types/:id ──────────────────────────────────────────────
 
@@ -248,6 +295,22 @@ class TestUpdateOtherPrayerType:
 
         assert_unauthorized(resp)
 
+    def test_update_other_users_item_returns_404(
+        self, api_client, auth_headers, second_auth_headers
+    ):
+        """Updating another user's item returns 404."""
+        create_resp = api_client.post(
+            BASE_URL,
+            json={"name": "User 2 Item To Update", "requiresRakahCount": False},
+            headers=second_auth_headers,
+        )
+        item_id = create_resp.json()["data"]["id"]
+
+        resp = api_client.put(
+            f"{BASE_URL}/{item_id}", json={"name": "Stolen"}, headers=auth_headers
+        )
+        assert_not_found(resp)
+
 
 # ── DELETE /other-prayer-types/:id ───────────────────────────────────────────
 
@@ -294,3 +357,17 @@ class TestDeleteOtherPrayerType:
         resp = api_client.delete(f"{BASE_URL}/{NONEXISTENT_ID}")
 
         assert_unauthorized(resp)
+
+    def test_delete_other_users_item_returns_404(
+        self, api_client, auth_headers, second_auth_headers
+    ):
+        """Deleting another user's item returns 404."""
+        create_resp = api_client.post(
+            BASE_URL,
+            json={"name": "User 2 Item To Delete", "requiresRakahCount": False},
+            headers=second_auth_headers,
+        )
+        item_id = create_resp.json()["data"]["id"]
+
+        resp = api_client.delete(f"{BASE_URL}/{item_id}", headers=auth_headers)
+        assert_not_found(resp)
