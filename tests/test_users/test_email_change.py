@@ -1,6 +1,7 @@
 """Tests for email change endpoints (POST /api/v1/users/email/request and .../confirm)."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.assertions import (
     assert_success,
@@ -14,7 +15,7 @@ from utils.auth_helpers import (
     login_user,
     unique_email,
 )
-from utils.db import get_latest_otp
+from utils.db import get_latest_otp, expire_otp
 
 pytestmark = pytest.mark.users
 
@@ -103,6 +104,38 @@ class TestEmailChangeRequest:
         )
 
         assert_validation_error(resp)
+
+    def test_email_change_request_to_own_current_email_returns_409(
+        self, api_client, registered_user
+    ):
+        """Requesting a change to your own current email is rejected (it already
+        "exists" — belongs to you), not accepted as a no-op."""
+        headers = get_auth_headers(registered_user["tokens"])
+        resp = api_client.post(
+            EMAIL_REQUEST_URL,
+            json={"newEmail": registered_user["email"]},
+            headers=headers,
+        )
+        assert_conflict(resp)
+
+    def test_email_change_request_sql_injection_returns_422(self, api_client, auth_headers):
+        """SQL injection attempt in newEmail is rejected as an invalid email."""
+        resp = api_client.post(
+            EMAIL_REQUEST_URL,
+            json={"newEmail": "'; DROP TABLE users; --"},
+            headers=auth_headers,
+        )
+        assert_validation_error(resp)
+
+    def test_email_change_request_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{EMAIL_REQUEST_URL}",
+            data='{"newEmail":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
 
 
 class TestEmailChangeConfirm:
@@ -227,3 +260,47 @@ class TestEmailChangeConfirm:
         )
 
         assert_validation_error(resp)
+
+    def test_email_change_confirm_expired_otp_returns_422(self, api_client, db_connection):
+        """An OTP past its expiresAt is rejected, even with the correct value."""
+        user_data = create_verified_user(api_client, db_connection)
+        headers = get_auth_headers(user_data["tokens"])
+        _new_email, otp = self._request_email_change(
+            api_client, headers, db_connection, user_data["email"]
+        )
+
+        expire_otp(db_connection, user_data["email"], "EMAIL_CHANGE")
+        db_connection.commit()
+
+        resp = api_client.post(EMAIL_CONFIRM_URL, json={"otp": otp}, headers=headers)
+        assert_validation_error(resp)
+
+    def test_email_change_confirm_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}{EMAIL_CONFIRM_URL}",
+            data='{"otp":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
+    def test_concurrent_email_confirm_same_otp_never_500(self, api_client, db_connection):
+        """10 parallel confirm calls with the same valid OTP must yield exactly
+        one success and never a 500 — protected by the same atomic claimOtp()
+        fix verified on verify-email and reset-password."""
+        user_data = create_verified_user(api_client, db_connection)
+        headers = get_auth_headers(user_data["tokens"])
+        _new_email, otp = self._request_email_change(
+            api_client, headers, db_connection, user_data["email"]
+        )
+
+        def attempt():
+            return api_client.post(EMAIL_CONFIRM_URL, json={"otp": otp}, headers=headers)
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(200) == 1, f"Expected exactly one 200, got: {status_codes}"
+        assert 500 not in status_codes, f"Got a 500 in concurrent confirm: {status_codes}"

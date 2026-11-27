@@ -1,6 +1,7 @@
 """Tests for user profile endpoints (GET/PUT /api/v1/users/profile)."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.assertions import (
     assert_success,
@@ -134,3 +135,102 @@ class TestUpdateProfile:
         )
 
         assert_unauthorized(resp)
+
+    def test_update_profile_latitude_without_longitude_returns_422(
+        self, api_client, auth_headers
+    ):
+        """Submitting latitude alone (no longitude) is rejected. Regression test:
+        both were independently optional with no cross-field constraint, so a
+        client could update one and leave the other stale/mismatched — timezone
+        is only recalculated when both are present together."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"latitude": 25.2048},
+            headers=auth_headers,
+        )
+        assert_validation_error(resp)
+
+    def test_update_profile_longitude_without_latitude_returns_422(
+        self, api_client, auth_headers
+    ):
+        """Submitting longitude alone (no latitude) is rejected."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"longitude": 55.2708},
+            headers=auth_headers,
+        )
+        assert_validation_error(resp)
+
+    def test_update_profile_latitude_and_longitude_together_succeeds(
+        self, api_client, auth_headers
+    ):
+        """Submitting both together succeeds and derives a timezone."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"latitude": 25.2048, "longitude": 55.2708},
+            headers=auth_headers,
+        )
+        body = assert_success(resp)
+        assert body["data"]["latitude"] == 25.2048
+        assert body["data"]["longitude"] == 55.2708
+        assert body["data"]["timezone"]
+
+    def test_update_profile_latitude_out_of_range_returns_422(
+        self, api_client, auth_headers
+    ):
+        """Latitude outside [-90, 90] is rejected."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"latitude": 91, "longitude": 0},
+            headers=auth_headers,
+        )
+        assert_validation_error(resp)
+
+    def test_update_profile_longitude_out_of_range_returns_422(
+        self, api_client, auth_headers
+    ):
+        """Longitude outside [-180, 180] is rejected."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"latitude": 0, "longitude": 181},
+            headers=auth_headers,
+        )
+        assert_validation_error(resp)
+
+    def test_update_profile_sql_injection_in_city_returns_422_or_sanitized(
+        self, api_client, auth_headers
+    ):
+        """A SQL-injection-shaped city value is either rejected or stored as a
+        harmless literal string (parameterized queries via Prisma prevent
+        injection regardless; this just confirms no crash/500)."""
+        resp = api_client.put(
+            PROFILE_URL,
+            json={"city": "'; DROP TABLE users; --"},
+            headers=auth_headers,
+        )
+        assert resp.status_code in (200, 422), f"Unexpected status: {resp.status_code}"
+
+    def test_update_profile_malformed_json_returns_400(self, api_client, auth_headers):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.put(
+            f"{api_client.base_url}{PROFILE_URL}",
+            data='{"displayName":"bad',
+            headers={**auth_headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
+    def test_concurrent_profile_updates_never_500(self, api_client, auth_headers):
+        """10 parallel profile updates for the same user must never 500."""
+
+        def attempt(i):
+            return api_client.put(
+                PROFILE_URL, json={"age": 20 + i}, headers=auth_headers
+            )
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(attempt, range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert 500 not in status_codes, f"Got a 500 in concurrent update: {status_codes}"
+        assert all(c == 200 for c in status_codes), f"Expected all 200s, got: {status_codes}"
