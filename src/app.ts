@@ -45,10 +45,15 @@ export const createApp = (): Application => {
   );
 
   // CORS configuration
+  //
+  // `credentials: true` was previously combined with a wildcard origin,
+  // which browsers reject outright per spec (can't use `*` with
+  // credentialed requests) — and it served no purpose anyway, since this
+  // API authenticates via a Bearer token in the Authorization header, not
+  // cookies. Dropped it; cookies were never part of this app's auth model.
   app.use(
     cors({
       origin: config.cors.origin,
-      credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
       maxAge: 86400, // 24 hours

@@ -55,7 +55,10 @@ export class AuthService {
   // Verify access token
   verifyAccessToken(token: string): DecodedToken {
     try {
-      return jwt.verify(token, config.jwt.secret) as DecodedToken;
+      // Explicitly pin the algorithm allowlist (defense-in-depth against
+      // algorithm-confusion attacks) rather than letting jwt.verify infer it
+      // from the token's own header.
+      return jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] }) as DecodedToken;
     } catch {
       throw new UnauthorizedError('Invalid or expired access token');
     }
@@ -64,7 +67,9 @@ export class AuthService {
   // Verify refresh token
   private verifyRefreshToken(token: string): DecodedToken {
     try {
-      return jwt.verify(token, config.jwt.refreshSecret) as DecodedToken;
+      return jwt.verify(token, config.jwt.refreshSecret, {
+        algorithms: ['HS256'],
+      }) as DecodedToken;
     } catch {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }

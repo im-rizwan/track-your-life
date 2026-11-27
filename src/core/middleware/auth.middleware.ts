@@ -29,6 +29,15 @@ export const authenticate = async (
       throw new UnauthorizedError('User not found');
     }
 
+    // login() already blocks deactivated accounts, but a token issued before
+    // deactivation would otherwise keep working here until it expires. No
+    // code path currently sets isActive=false (account deletion is a hard
+    // delete), so this is dormant today — but worth having correct before
+    // any future deactivation feature silently inherits the gap.
+    if (!user.isActive) {
+      throw new UnauthorizedError('Account is deactivated');
+    }
+
     // Attach user to request
     req.user = user;
 
