@@ -139,7 +139,9 @@ export class EmailService {
    */
   async sendAccountDeletedConfirmation(email: string, userName?: string): Promise<void> {
     if (config.disableEmail) {
-      console.log('📧 Email sending disabled (DISABLE_EMAIL=true). Skipping deletion confirmation.');
+      console.log(
+        '📧 Email sending disabled (DISABLE_EMAIL=true). Skipping deletion confirmation.'
+      );
       return;
     }
 

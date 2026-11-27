@@ -147,32 +147,30 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    const result = await this.repository.transaction(
-      async (tx) => {
-        // Create user with unverified email
-        const user = await tx.user.create({
-          data: {
-            email: data.email,
-            password: hashedPassword,
-          },
-        });
+    const result = await this.repository.transaction(async (tx) => {
+      // Create user with unverified email
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          password: hashedPassword,
+        },
+      });
 
-        // Store hashed OTP
-        await tx.otpToken.create({
-          data: {
-            userId: user.id,
-            token: hashedOtp,
-            purpose: OtpPurpose.EMAIL_VERIFICATION,
-            expiresAt,
-          },
-        });
+      // Store hashed OTP
+      await tx.otpToken.create({
+        data: {
+          userId: user.id,
+          token: hashedOtp,
+          purpose: OtpPurpose.EMAIL_VERIFICATION,
+          expiresAt,
+        },
+      });
 
-        return {
-          email: user.email,
-          message: 'Registration successful. Please check your email for verification code.',
-        };
-      },
-    );
+      return {
+        email: user.email,
+        message: 'Registration successful. Please check your email for verification code.',
+      };
+    });
 
     // Send OTP email after transaction commits (non-blocking for DB)
     await this.sendOtpEmail(data.email, otp, EmailPurpose.EMAIL_VERIFICATION);
@@ -257,32 +255,30 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    await this.repository.transaction(
-      async (tx) => {
-        // Invalidate existing unused EMAIL_VERIFICATION OTPs
-        await tx.otpToken.updateMany({
-          where: {
-            userId: user.id,
-            purpose: OtpPurpose.EMAIL_VERIFICATION,
-            isUsed: false,
-          },
-          data: {
-            isUsed: true,
-            usedAt: new Date(),
-          },
-        });
+    await this.repository.transaction(async (tx) => {
+      // Invalidate existing unused EMAIL_VERIFICATION OTPs
+      await tx.otpToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: OtpPurpose.EMAIL_VERIFICATION,
+          isUsed: false,
+        },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+        },
+      });
 
-        // Store hashed OTP
-        await tx.otpToken.create({
-          data: {
-            userId: user.id,
-            token: hashedOtp,
-            purpose: OtpPurpose.EMAIL_VERIFICATION,
-            expiresAt,
-          },
-        });
-      },
-    );
+      // Store hashed OTP
+      await tx.otpToken.create({
+        data: {
+          userId: user.id,
+          token: hashedOtp,
+          purpose: OtpPurpose.EMAIL_VERIFICATION,
+          expiresAt,
+        },
+      });
+    });
 
     // Send OTP email after transaction commits
     await this.sendOtpEmail(email, otp, EmailPurpose.EMAIL_VERIFICATION);
@@ -310,32 +306,30 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    await this.repository.transaction(
-      async (tx) => {
-        // Invalidate existing unused PASSWORD_RESET OTPs
-        await tx.otpToken.updateMany({
-          where: {
-            userId: user.id,
-            purpose: OtpPurpose.PASSWORD_RESET,
-            isUsed: false,
-          },
-          data: {
-            isUsed: true,
-            usedAt: new Date(),
-          },
-        });
+    await this.repository.transaction(async (tx) => {
+      // Invalidate existing unused PASSWORD_RESET OTPs
+      await tx.otpToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: OtpPurpose.PASSWORD_RESET,
+          isUsed: false,
+        },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+        },
+      });
 
-        // Store hashed OTP
-        await tx.otpToken.create({
-          data: {
-            userId: user.id,
-            token: hashedOtp,
-            purpose: OtpPurpose.PASSWORD_RESET,
-            expiresAt,
-          },
-        });
-      },
-    );
+      // Store hashed OTP
+      await tx.otpToken.create({
+        data: {
+          userId: user.id,
+          token: hashedOtp,
+          purpose: OtpPurpose.PASSWORD_RESET,
+          expiresAt,
+        },
+      });
+    });
 
     // Send OTP email after transaction commits
     await this.sendOtpEmail(email, otp, EmailPurpose.PASSWORD_RESET);
@@ -363,32 +357,30 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    await this.repository.transaction(
-      async (tx) => {
-        // Invalidate existing unused PASSWORD_RESET OTPs
-        await tx.otpToken.updateMany({
-          where: {
-            userId: user.id,
-            purpose: OtpPurpose.PASSWORD_RESET,
-            isUsed: false,
-          },
-          data: {
-            isUsed: true,
-            usedAt: new Date(),
-          },
-        });
+    await this.repository.transaction(async (tx) => {
+      // Invalidate existing unused PASSWORD_RESET OTPs
+      await tx.otpToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: OtpPurpose.PASSWORD_RESET,
+          isUsed: false,
+        },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+        },
+      });
 
-        // Store hashed OTP
-        await tx.otpToken.create({
-          data: {
-            userId: user.id,
-            token: hashedOtp,
-            purpose: OtpPurpose.PASSWORD_RESET,
-            expiresAt,
-          },
-        });
-      },
-    );
+      // Store hashed OTP
+      await tx.otpToken.create({
+        data: {
+          userId: user.id,
+          token: hashedOtp,
+          purpose: OtpPurpose.PASSWORD_RESET,
+          expiresAt,
+        },
+      });
+    });
 
     // Send OTP email after transaction commits
     await this.sendOtpEmail(email, otp, EmailPurpose.PASSWORD_RESET);
@@ -471,32 +463,30 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    await this.repository.transaction(
-      async (tx) => {
-        // Invalidate existing unused ACCOUNT_DELETION OTPs
-        await tx.otpToken.updateMany({
-          where: {
-            userId,
-            purpose: OtpPurpose.ACCOUNT_DELETION,
-            isUsed: false,
-          },
-          data: {
-            isUsed: true,
-            usedAt: new Date(),
-          },
-        });
+    await this.repository.transaction(async (tx) => {
+      // Invalidate existing unused ACCOUNT_DELETION OTPs
+      await tx.otpToken.updateMany({
+        where: {
+          userId,
+          purpose: OtpPurpose.ACCOUNT_DELETION,
+          isUsed: false,
+        },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+        },
+      });
 
-        // Store hashed OTP
-        await tx.otpToken.create({
-          data: {
-            userId,
-            token: hashedOtp,
-            purpose: OtpPurpose.ACCOUNT_DELETION,
-            expiresAt,
-          },
-        });
-      },
-    );
+      // Store hashed OTP
+      await tx.otpToken.create({
+        data: {
+          userId,
+          token: hashedOtp,
+          purpose: OtpPurpose.ACCOUNT_DELETION,
+          expiresAt,
+        },
+      });
+    });
 
     // Send OTP email after transaction commits
     await this.sendOtpEmail(user.email, otp, EmailPurpose.ACCOUNT_DELETION);

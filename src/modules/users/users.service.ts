@@ -268,33 +268,31 @@ export class UsersService {
     const expiresAt = new Date(Date.now() + 2 * 60 * 1000); // 2 minutes
 
     // Use transaction for DB atomicity, send email after commit
-    await this.repository.transaction(
-      async (tx) => {
-        // Invalidate existing unused EMAIL_CHANGE OTPs
-        await tx.otpToken.updateMany({
-          where: {
-            userId,
-            purpose: OtpPurpose.EMAIL_CHANGE,
-            isUsed: false,
-          },
-          data: {
-            isUsed: true,
-            usedAt: new Date(),
-          },
-        });
+    await this.repository.transaction(async (tx) => {
+      // Invalidate existing unused EMAIL_CHANGE OTPs
+      await tx.otpToken.updateMany({
+        where: {
+          userId,
+          purpose: OtpPurpose.EMAIL_CHANGE,
+          isUsed: false,
+        },
+        data: {
+          isUsed: true,
+          usedAt: new Date(),
+        },
+      });
 
-        // Store hashed OTP with new email in metadata
-        await tx.otpToken.create({
-          data: {
-            userId,
-            token: hashedOtp,
-            purpose: OtpPurpose.EMAIL_CHANGE,
-            expiresAt,
-            metadata: { newEmail },
-          },
-        });
-      },
-    );
+      // Store hashed OTP with new email in metadata
+      await tx.otpToken.create({
+        data: {
+          userId,
+          token: hashedOtp,
+          purpose: OtpPurpose.EMAIL_CHANGE,
+          expiresAt,
+          metadata: { newEmail },
+        },
+      });
+    });
 
     // Send OTP to NEW email address after transaction commits
     await this.sendOtpEmail(newEmail, otp, EmailPurpose.EMAIL_CHANGE);

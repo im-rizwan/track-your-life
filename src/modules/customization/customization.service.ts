@@ -50,7 +50,9 @@ export class CustomizationService {
   async createPrayerLocation(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createPrayerLocation(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updatePrayerLocation(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -58,7 +60,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Prayer location');
     try {
       return await this.repo.updatePrayerLocation(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deletePrayerLocation(id: string, userId: string) {
@@ -80,7 +84,9 @@ export class CustomizationService {
   async createOtherPrayerType(userId: string, data: CreateOtherPrayerTypeDto) {
     try {
       return await this.repo.createOtherPrayerType(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateOtherPrayerType(id: string, userId: string, data: UpdateOtherPrayerTypeDto) {
@@ -88,7 +94,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Other prayer type');
     try {
       return await this.repo.updateOtherPrayerType(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteOtherPrayerType(id: string, userId: string) {
@@ -110,7 +118,9 @@ export class CustomizationService {
   async createDhikrType(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createDhikrType(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateDhikrType(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -118,7 +128,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Dhikr type');
     try {
       return await this.repo.updateDhikrType(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteDhikrType(id: string, userId: string) {
@@ -140,7 +152,9 @@ export class CustomizationService {
   async createFastingType(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createFastingType(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateFastingType(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -148,7 +162,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Fasting type');
     try {
       return await this.repo.updateFastingType(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteFastingType(id: string, userId: string) {
@@ -170,7 +186,9 @@ export class CustomizationService {
   async createCharityType(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createCharityType(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateCharityType(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -178,7 +196,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Charity type');
     try {
       return await this.repo.updateCharityType(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteCharityType(id: string, userId: string) {
@@ -200,7 +220,9 @@ export class CustomizationService {
   async createIslamicStudySubject(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createIslamicStudySubject(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateIslamicStudySubject(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -208,7 +230,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Islamic study subject');
     try {
       return await this.repo.updateIslamicStudySubject(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteIslamicStudySubject(id: string, userId: string) {
@@ -230,7 +254,9 @@ export class CustomizationService {
   async createStudyMode(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createStudyMode(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateStudyMode(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -238,7 +264,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Study mode');
     try {
       return await this.repo.updateStudyMode(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteStudyMode(id: string, userId: string) {
@@ -260,7 +288,9 @@ export class CustomizationService {
   async createFitnessActivity(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createFitnessActivity(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateFitnessActivity(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -268,7 +298,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Fitness activity');
     try {
       return await this.repo.updateFitnessActivity(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteFitnessActivity(id: string, userId: string) {
@@ -290,7 +322,9 @@ export class CustomizationService {
   async createNutritionFood(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createNutritionFood(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateNutritionFood(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -298,7 +332,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Nutrition food');
     try {
       return await this.repo.updateNutritionFood(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteNutritionFood(id: string, userId: string) {
@@ -320,7 +356,9 @@ export class CustomizationService {
   async createFitrahPractice(userId: string, data: CreateSimpleItemDto) {
     try {
       return await this.repo.createFitrahPractice(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateFitrahPractice(id: string, userId: string, data: CreateSimpleItemDto) {
@@ -328,7 +366,9 @@ export class CustomizationService {
     await this.checkOwnership(item, 'Fitrah practice');
     try {
       return await this.repo.updateFitrahPractice(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteFitrahPractice(id: string, userId: string) {
@@ -350,7 +390,9 @@ export class CustomizationService {
   async createSkill(userId: string, data: { name: string }) {
     try {
       return await this.repo.createSkill(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateSkill(id: string, userId: string, data: { name: string }) {
@@ -358,7 +400,9 @@ export class CustomizationService {
     if (!item) throw new NotFoundError('Skill not found');
     try {
       return await this.repo.updateSkill(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteSkill(id: string, userId: string) {
@@ -384,7 +428,9 @@ export class CustomizationService {
     if (!skill) throw new NotFoundError('Skill not found');
     try {
       return await this.repo.createTopic(skillId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateTopic(skillId: string, topicId: string, userId: string, data: UpdateSkillTopicDto) {
@@ -394,7 +440,9 @@ export class CustomizationService {
     if (!topic) throw new NotFoundError('Skill topic not found');
     try {
       return await this.repo.updateTopic(topicId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteTopic(skillId: string, topicId: string, userId: string) {
@@ -418,7 +466,9 @@ export class CustomizationService {
   async createIntention(userId: string, data: { name: string }) {
     try {
       return await this.repo.createIntention(userId, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async updateIntention(id: string, userId: string, data: { name: string }) {
@@ -426,7 +476,9 @@ export class CustomizationService {
     if (!item) throw new NotFoundError('Intention not found');
     try {
       return await this.repo.updateIntention(id, data);
-    } catch (error) { handleUniqueError(error); }
+    } catch (error) {
+      handleUniqueError(error);
+    }
   }
 
   async deleteIntention(id: string, userId: string) {

@@ -9,8 +9,7 @@ import {
 // fitrahPracticeOnLog.createMany() and throw a Prisma P2002 mid-transaction,
 // surfacing as a misleading 409 "already exists" instead of a clear
 // validation error for what's actually a client input mistake.
-const noDuplicatePractices = (practices: string[]) =>
-  new Set(practices).size === practices.length;
+const noDuplicatePractices = (practices: string[]) => new Set(practices).size === practices.length;
 
 export const createFitrahPracticeLogSchema = z.object({
   body: z.object({
