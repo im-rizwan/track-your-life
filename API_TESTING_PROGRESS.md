@@ -36,15 +36,15 @@ account's task creation at the exact UTC/local date boundary.
 |---|---|
 | POST /register | ✅ |
 | POST /verify-email | ✅ |
-| POST /resend-verification | ⬜ |
-| POST /login | ⬜ |
-| POST /forgot-password | ⬜ |
-| POST /resend-reset-otp | ⬜ |
-| POST /reset-password | ⬜ |
-| POST /refresh | ⬜ |
-| POST /logout | ⬜ |
-| POST /logout-all | ⬜ |
-| GET /session | ⬜ |
+| POST /resend-verification | ✅ |
+| POST /login | ✅ |
+| POST /forgot-password | ✅ |
+| POST /resend-reset-otp | ✅ |
+| POST /reset-password | ✅ |
+| POST /refresh | ✅ |
+| POST /logout | ✅ |
+| POST /logout-all | ✅ |
+| GET /session | ✅ |
 
 ### Users (`/api/v1/users`) — 6 endpoints
 | Endpoint | Status |
@@ -353,6 +353,46 @@ of being idempotent). Will fix when the logout endpoint comes up in the queue.
    concurrency test asserting 10 parallel logins yield 10 distinct tokens — passes cleanly now.
 
 ✅ **POST /api/v1/auth/login is declared PROD READY.**
+
+---
+
+### ✅ POST /api/v1/auth/resend-verification, forgot-password, resend-reset-otp, reset-password
+
+Batched together — all OTP-issuing/consuming siblings sharing the same validation, enumeration-
+safety, and concurrency patterns already proven on verify-email. Added a full new test file for
+resend-verification (none existed before) and filled gaps in the existing password-reset suite
+(malformed JSON, cross-user OTP, expired OTP, case-insensitive email, concurrency races).
+
+**No new bugs** — the `claimOtp` atomic fix already covers reset-password's race, and the
+enumeration-safety pattern (silent 200 for non-existent email, explicit 409 for already-verified)
+is consistent across all of them. 51 tests pass (40 new/updated + the 11 pre-existing in
+test_password_reset.py that already covered the basics correctly).
+
+✅ All four declared **PROD READY**.
+
+### ✅ POST /api/v1/auth/refresh, logout, logout-all · GET /api/v1/auth/session
+
+**Bugs found & fixed:**
+1. 🐛→✅ **FIXED** — `logout` with a non-existent/already-deleted refresh token returned a raw
+   `500`. An existing test (`test_logout_with_invalid_token_returns_500`) *documented this as
+   known behavior in its own name and docstring* rather than treating it as a bug — exactly the
+   kind of "accepted brokenness" this testing pass exists to catch. Root cause:
+   `deleteRefreshToken()` used `prisma.refreshToken.delete()` (throws `P2025` if the row doesn't
+   exist) instead of `deleteMany()` (idempotent no-op). Fixed, and the test now asserts the
+   correct idempotent `200`.
+2. 🐛→✅ **FIXED** — The *access* token had the same deterministic-JWT issue already fixed on the
+   refresh token: no random `jti`, so two access tokens for the same user issued within the same
+   wall-clock second were byte-identical. Caught immediately by `test_refresh_new_tokens_differ
+   _from_old` failing once the refresh-token jti fix exposed the gap. Added `jti` to the access
+   token too. Also found and removed **two more** stale `time.sleep(1)` workarounds in
+   `test_token_refresh.py` for this exact class of bug (one of which had a docstring literally
+   accepting `200 OR 401` as valid for an old-token-reuse check — now tightened to strictly
+   assert `401`), and one in `test_logout.py`'s logout-all test.
+
+Also added: a reuse-detection test chaining 5 rapid refreshes, and concurrency tests for refresh,
+logout, and logout-all (10 parallel calls each, asserting no `500`s).
+
+✅ All four declared **PROD READY**.
 
 ---
 
