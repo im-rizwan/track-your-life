@@ -1,9 +1,10 @@
 """Tests for forgot-password, resend-reset-otp, and reset-password endpoints."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.auth_helpers import unique_email, create_verified_user
-from utils.db import get_latest_otp
+from utils.db import get_latest_otp, expire_otp
 from utils.assertions import (
     assert_success,
     assert_unauthorized,
@@ -43,6 +44,21 @@ class TestForgotPassword:
         """Invalid email format returns 422."""
         resp = api_client.forgot_password("not-an-email")
         assert_validation_error(resp)
+
+    def test_forgot_password_case_insensitive_email(self, api_client, registered_user):
+        """Forgot password works with an uppercased email."""
+        resp = api_client.forgot_password(registered_user["email"].upper())
+        assert_success(resp)
+
+    def test_forgot_password_malformed_json_returns_400(self, api_client):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}/api/v1/auth/forgot-password",
+            data='{"email":"bad',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
 
 
 class TestResendResetOtp:
@@ -215,3 +231,96 @@ class TestResetPassword:
         """Reset for a non-existent email returns 422."""
         resp = api_client.reset_password("nobody@nowhere.com", "123456", "NewP@ss123")
         assert_validation_error(resp)
+
+    def test_reset_password_expired_otp_returns_422(
+        self, api_client, registered_user, db_connection
+    ):
+        """An OTP past its expiresAt is rejected, even with the correct value."""
+        email = registered_user["email"]
+        api_client.forgot_password(email)
+        db_connection.commit()
+
+        otp = get_latest_otp(db_connection, email, "PASSWORD_RESET")
+        expire_otp(db_connection, email, "PASSWORD_RESET")
+        db_connection.commit()
+
+        resp = api_client.reset_password(email, otp, "NewP@ss123")
+        assert_validation_error(resp)
+
+    def test_reset_password_rejects_otp_from_different_user(
+        self, api_client, registered_user, second_user, db_connection
+    ):
+        """User A's reset OTP must not reset user B's password."""
+        api_client.forgot_password(registered_user["email"])
+        db_connection.commit()
+        otp_a = get_latest_otp(db_connection, registered_user["email"], "PASSWORD_RESET")
+
+        resp = api_client.reset_password(second_user["email"], otp_a, "NewP@ss123")
+        assert_validation_error(resp)
+
+    def test_reset_password_case_insensitive_email(
+        self, api_client, registered_user, db_connection
+    ):
+        """Resetting works when the email is uppercased."""
+        email = registered_user["email"]
+        api_client.forgot_password(email)
+        db_connection.commit()
+
+        otp = get_latest_otp(db_connection, email, "PASSWORD_RESET")
+        resp = api_client.reset_password(email.upper(), otp, "NewP@ss123")
+        assert_success(resp)
+
+    def test_reset_password_malformed_json_returns_400(self, api_client):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}/api/v1/auth/reset-password",
+            data='{"email":"bad',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"
+
+
+class TestResetPasswordConcurrency:
+    """Race-condition handling for concurrent password resets with the same OTP."""
+
+    def test_concurrent_reset_same_otp_never_500(
+        self, api_client, registered_user, db_connection
+    ):
+        """10 parallel reset-password calls with the same valid OTP must yield
+        exactly one 200 and never a 500 — protected by the same atomic claimOtp()
+        fix verified on verify-email."""
+        email = registered_user["email"]
+        api_client.forgot_password(email)
+        db_connection.commit()
+        otp = get_latest_otp(db_connection, email, "PASSWORD_RESET")
+
+        def attempt():
+            return api_client.reset_password(email, otp, "NewP@ss123")
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert status_codes.count(200) == 1, f"Expected exactly one 200, got: {status_codes}"
+        assert 500 not in status_codes, f"Got a 500 in concurrent reset: {status_codes}"
+
+
+class TestResendResetOtpExtra:
+    """Additional edge cases for resend-reset-otp."""
+
+    def test_resend_reset_otp_case_insensitive_email(self, api_client, registered_user):
+        """Resend works with an uppercased email."""
+        api_client.forgot_password(registered_user["email"])
+        resp = api_client.resend_reset_otp(registered_user["email"].upper())
+        assert_success(resp)
+
+    def test_resend_reset_otp_malformed_json_returns_400(self, api_client):
+        """A request body that isn't valid JSON returns 400, not 500."""
+        resp = api_client.session.post(
+            f"{api_client.base_url}/api/v1/auth/resend-reset-otp",
+            data='{"email":"bad',
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"]["code"] == "INVALID_JSON"

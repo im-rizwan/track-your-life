@@ -1,8 +1,7 @@
 """Tests for POST /api/v1/auth/logout and POST /api/v1/auth/logout-all."""
 
-import time
-
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.auth_helpers import create_verified_user, get_auth_headers, login_user
 from utils.assertions import (
@@ -47,18 +46,23 @@ class TestLogout:
         resp = api_client.post("/api/v1/auth/logout", json={})
         assert_validation_error(resp)
 
-    def test_logout_with_invalid_token_returns_500(self, api_client):
-        """Logging out with a non-existent token returns 500.
-
-        The API calls prisma.refreshToken.delete() which throws a
-        RecordNotFound error when the token does not exist. The error is not
-        caught, so it surfaces as a 500. Ideally this would be idempotent (200)
-        but the current implementation does not handle the missing-record case.
-        """
+    def test_logout_with_nonexistent_token_is_idempotent(self, api_client):
+        """Logging out with a token that doesn't exist in the DB returns 200
+        (idempotent), not 500. Regression test: deleteRefreshToken() used
+        prisma.refreshToken.delete() (throws on missing record) instead of
+        deleteMany() (0-row no-op), so this previously raised an unhandled
+        P2025 that surfaced as a raw 500."""
         resp = api_client.logout("some-nonexistent-token-value")
-        assert resp.status_code == 500, (
-            f"Expected 500 for non-existent token, got {resp.status_code}: {resp.text}"
-        )
+        assert_success(resp)
+
+    def test_logout_twice_with_same_token_is_idempotent(self, api_client, registered_user):
+        """Logging out twice with the same (now-already-deleted) token
+        succeeds both times rather than 500ing on the second call."""
+        refresh_token = registered_user["tokens"]["refreshToken"]
+        api_client.logout(refresh_token)
+
+        resp = api_client.logout(refresh_token)
+        assert_success(resp)
 
 
 class TestLogoutAll:
@@ -78,17 +82,9 @@ class TestLogoutAll:
     def test_logout_all_invalidates_all_tokens(
         self, api_client, db_connection, registered_user
     ):
-        """After logout-all, all refresh tokens for the user are invalidated.
-
-        A 1-second sleep before the second login prevents a Prisma unique
-        constraint violation on RefreshToken caused by identical JWT strings
-        generated within the same second.
-        """
+        """After logout-all, all refresh tokens for the user are invalidated."""
         email = registered_user["email"]
         password = registered_user["password"]
-
-        # Sleep to avoid JWT token collision (same-second = identical token)
-        time.sleep(1)
 
         # Login a second time to create a second refresh token
         second_login = login_user(api_client, email, password)
@@ -118,3 +114,18 @@ class TestLogoutAll:
         headers = {"Authorization": "Bearer invalid-token"}
         resp = api_client.logout_all(headers)
         assert_unauthorized(resp)
+
+    def test_concurrent_logout_calls_never_500(self, api_client, registered_user):
+        """10 parallel logout calls with the same token must never 500 — each
+        after the first is a no-op delete of an already-removed row."""
+        refresh_token = registered_user["tokens"]["refreshToken"]
+
+        def attempt():
+            return api_client.logout(refresh_token)
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: attempt(), range(10)))
+
+        status_codes = [r.status_code for r in responses]
+        assert 500 not in status_codes, f"Got a 500 in concurrent logout: {status_codes}"
+        assert all(c == 200 for c in status_codes), f"Expected all 200s, got: {status_codes}"
