@@ -59,10 +59,10 @@ account's task creation at the exact UTC/local date boundary.
 ### Prayer Times (`/api/v1/prayer-times`) — 4 endpoints
 | Endpoint | Status |
 |---|---|
-| GET /config | ⬜ |
-| PUT /config | ⬜ |
-| GET /today | ⬜ |
-| POST /refresh | ⬜ |
+| GET /config | ✅ |
+| PUT /config | ✅ |
+| GET /today | ✅ |
+| POST /refresh | ✅ |
 
 ### Reference (`/api/v1/reference`) — 8 endpoints (read-only lookup data)
 | Endpoint | Status |
@@ -413,6 +413,38 @@ for profile update (10 parallel, never `500`) and email-confirm (same `claimOtp`
 verify-email/reset-password — 10 parallel, exactly one success, never `500`).
 
 53 tests pass (18 new, 35 pre-existing). All 5 declared **PROD READY**.
+
+---
+
+### ✅ Prayer Times module: GET/PUT /config, GET /today, POST /refresh
+
+**Critical bug found & fixed — the most severe of this entire campaign:**
+1. 🐛→✅ **FIXED** — `getTodaysPrayerTimes()` and `refreshPrayerTimes()` computed "today" via
+   `new Date(); setHours(0,0,0,0)` — the **server's** local/UTC clock — completely ignoring the
+   user's own stored IANA `timezone`. The code even had a comment admitting it:
+   *"Timezone is stored in user profile but not currently used for API calls."* This is the exact
+   same day-boundary mechanism as the earlier tracking-date timezone bug, except here it doesn't
+   just reject a request — it **fetches, caches, and serves prayer times for the wrong calendar
+   day entirely**, for up to ~14 hours of every single day, for any user whose timezone differs
+   enough from the server's. For an app whose entire purpose is tracking daily worship against
+   accurate prayer times, this is about as severe as a bug gets.
+   - Also notable: **zero existing tests ever exercised the AUTOMATIC-mode code path** (the one
+     with this bug) — every prior test used MANUAL mode exclusively, which never touches this
+     logic. The bug was invisible to the suite entirely until this pass added real AUTOMATIC-mode
+     coverage with a live Aladhan API call.
+   - Fix: added `getTodayForUser(timezone)`, using `Intl.DateTimeFormat('en-CA', {timeZone})` to
+     get the user's actual local calendar date, with a safe UTC fallback if no timezone is stored
+     yet or the stored value is somehow invalid. Also fixed `formatDate()` to use UTC getters
+     instead of local getters — it was about to reintroduce the identical bug one call deeper,
+     since the newly-constructed dates are UTC-anchored but local getters depend on the server's
+     own TZ setting.
+   - **Verified with a real Aladhan API call**: registered a test user with Los Angeles
+     coordinates (chosen deliberately far from both UTC and the test machine's own timezone — a
+     13.5-hour gap), set AUTOMATIC mode, and asserted the returned `date` matches Python's
+     independently-computed `datetime.now(ZoneInfo("America/Los_Angeles"))` — not the test
+     machine's own "today". Passes cleanly now for both GET /today and POST /refresh.
+
+All 33 tests pass (37 total incl. new AUTOMATIC-mode suite). All 4 declared **PROD READY**.
 
 ---
 
