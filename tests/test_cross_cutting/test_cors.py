@@ -42,13 +42,18 @@ class TestCors:
         assert "GET" in allowed_methods
         assert "POST" in allowed_methods
 
-    def test_cors_includes_credentials_header(self, api_client):
-        """Response includes Access-Control-Allow-Credentials: true."""
+    def test_cors_does_not_include_credentials_header(self, api_client):
+        """Response must NOT include Access-Control-Allow-Credentials.
+
+        This API authenticates via a Bearer token, not cookies, so
+        `credentials: true` serves no purpose — and combined with a
+        wildcard origin (CORS_ORIGIN=*) it was an invalid configuration
+        per spec (browsers reject `*` + credentialed requests outright).
+        Regression test for that fix: the header must be absent."""
         resp = api_client.get(
             "/health",
             headers={"Origin": "http://example.com"},
         )
 
         assert resp.status_code == 200
-        assert "access-control-allow-credentials" in resp.headers
-        assert resp.headers["access-control-allow-credentials"] == "true"
+        assert "access-control-allow-credentials" not in resp.headers
