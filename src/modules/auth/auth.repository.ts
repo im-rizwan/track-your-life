@@ -61,7 +61,10 @@ export class AuthRepository {
   }
 
   async deleteRefreshToken(token: string): Promise<void> {
-    await prisma.refreshToken.delete({
+    // deleteMany (not delete) so logging out with an already-invalidated or
+    // bogus token is idempotent (0 rows affected) instead of throwing a
+    // Prisma P2025 "record not found" that previously surfaced as a raw 500.
+    await prisma.refreshToken.deleteMany({
       where: { token },
     });
   }

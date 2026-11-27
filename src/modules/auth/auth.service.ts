@@ -30,7 +30,11 @@ export class AuthService {
       algorithm: 'HS256',
     };
 
-    return jwt.sign(payload, config.jwt.secret, options);
+    // Same rationale as the refresh token's jti: without it, two access
+    // tokens issued for the same user in the same wall-clock second are
+    // byte-identical, so "refresh" wouldn't actually produce a new access
+    // token when called within a second of the original issuance.
+    return jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.jwt.secret, options);
   }
 
   // Generate JWT refresh token
