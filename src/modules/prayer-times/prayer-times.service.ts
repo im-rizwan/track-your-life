@@ -170,8 +170,7 @@ export class PrayerTimesService {
       throw new NotFoundError('User not found');
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to midnight
+    const today = this.getTodayForUser(user.timezone);
 
     // Check if manual mode
     if (config.calculationMode === CalculationMode.MANUAL) {
@@ -216,8 +215,7 @@ export class PrayerTimesService {
       throw new NotFoundError('User not found');
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = this.getTodayForUser(user.timezone);
 
     return this.fetchAndCachePrayerTimes(userId, user, config, today);
   }
@@ -266,10 +264,6 @@ export class PrayerTimesService {
     if (!user.latitude || !user.longitude) {
       throw new BadRequestError('User location not set. Please enable location access.');
     }
-
-    // Get timezone (use stored or derive from coordinates)
-    // Note: Timezone is stored in user profile but not currently used for API calls
-    // Aladhan API calculates times based on coordinates directly
 
     // Fetch from Aladhan API
     const prayerTimes = await this.fetchFromAladhan(
@@ -433,12 +427,55 @@ export class PrayerTimesService {
   }
 
   /**
+   * "Today" in the user's own local timezone, not the server's.
+   *
+   * The server runs on UTC; a naive `new Date(); setHours(0,0,0,0)` normalizes
+   * to midnight in the server's timezone, not the user's. For any user whose
+   * timezone is ahead of or behind the server's, there's a window every day
+   * (up to ~14 hours) where that produces the wrong calendar date — meaning
+   * prayer times get fetched, cached under, and served for the wrong day
+   * entirely (the exact bug class already found and fixed for tracking-log
+   * dates in common-schemas.ts). Falls back to server-UTC "today" only when
+   * the user hasn't set a location yet (no timezone stored).
+   */
+  private getTodayForUser(timezone: string | null): Date {
+    if (!timezone) {
+      const fallback = new Date();
+      fallback.setHours(0, 0, 0, 0);
+      return fallback;
+    }
+
+    try {
+      // en-CA locale formats as YYYY-MM-DD, giving us the user's local
+      // calendar date directly without manual offset arithmetic.
+      const localDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(
+        new Date()
+      );
+      const [year, month, day] = localDateStr.split('-').map(Number);
+      return new Date(Date.UTC(year, month - 1, day));
+    } catch (error) {
+      console.error('Invalid stored timezone, falling back to server UTC date:', {
+        error: error instanceof Error ? error.message : error,
+        timezone,
+      });
+      const fallback = new Date();
+      fallback.setHours(0, 0, 0, 0);
+      return fallback;
+    }
+  }
+
+  /**
    * Format date to YYYY-MM-DD
    */
   private formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    // UTC getters, not local: `date` values here are always UTC-midnight
+    // representations of a calendar day (constructed via getTodayForUser, or
+    // read back from a Postgres @db.Date column via Prisma, which also comes
+    // back as UTC midnight). Using local getters would re-shift the date on
+    // any server whose TZ isn't UTC.
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
 }
