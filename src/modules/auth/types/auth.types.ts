@@ -18,6 +18,7 @@ export interface AuthResponse {
 export interface DecodedToken {
   userId: string;
   email: string;
+  jti?: string;
   iat: number;
   exp: number;
 }

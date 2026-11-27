@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../../core/config/env.config';
@@ -39,7 +40,12 @@ export class AuthService {
       algorithm: 'HS256',
     };
 
-    return jwt.sign(payload, config.jwt.refreshSecret, options);
+    // A random jti guarantees a unique token string even when two refresh
+    // tokens are issued for the same user within the same wall-clock second
+    // (JWTs are otherwise deterministic from payload + iat, and RefreshToken
+    // .token has a @unique constraint — without this, concurrent logins or
+    // rapid re-registration/re-verification for one user could collide).
+    return jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.jwt.refreshSecret, options);
   }
 
   // Verify access token
@@ -552,7 +558,7 @@ export class AuthService {
     // Check for account lockout (5 failed attempts in last 15 minutes)
     const recentFailedAttempts = await this.repository.countRecentFailedAttempts(user.id, 15);
     if (recentFailedAttempts >= 5) {
-      throw new UnauthorizedError('Too many failed login attempts. Account locked for 30 minutes.');
+      throw new UnauthorizedError('Too many failed login attempts. Account locked for 15 minutes.');
     }
 
     // Verify password
